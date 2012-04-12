@@ -30,6 +30,7 @@ my $max_processes = 1;
 my ($glob_single, $glob_paired);
 
 parse_command_line();
+unless( defined($glob_single) && defined($glob_paired) ) { print $usage; exit; }
 
 my @single_end_files = glob($glob_single);
 my @paired_end_files = glob($glob_paired);
