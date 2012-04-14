@@ -35,14 +35,22 @@ my @arg = @ARGV;
 
 parse_command_line();
 unless ( defined($glob_single) && defined($glob_paired) ) { 
-	print "\nyour command line:\n", $0, " ",  "@arg\n";
-	print $usage; 
+	print STDERR "\nyour command line:\n", $0, " ",  "@arg\n";
+	print STDERR $usage; 
 	exit; 
 }
 
 my @single_end_files = glob($glob_single);
 my @paired_end_files = glob($glob_paired);
 
+# if no single-end or paired-end files are found 
+unless ( @single_end_files and @paired_end_files ) { 
+	print STDERR  "\nyour command line:\n", $0, " ",  "@arg\n";
+	print STDERR  $usage; 
+	exit; 
+}
+
+print "command line used for this run:\n", $0, " ", "@arg\n", $usage;
 
 # initialise the parallel processing
 my $pm = new Parallel::ForkManager( scalar(@single_end_files) );
@@ -75,6 +83,7 @@ foreach my $file ( 0..$#single_end_files ) {
 	$pm->finish;
 }
 $pm->wait_all_children;
+print STDERR "Finished\n";
 
 #################################################################
 ### FUNCTION: merge single-end and paired-end read of paired files
@@ -197,7 +206,7 @@ sub parse_command_line {
 		if ( $_ =~ /^-p$/ ) { $glob_paired = shift @ARGV; }
 		if ( $_ =~ /^-s$/ ) { $glob_single = shift @ARGV; }
 		if ( $_ =~ /^-t$/ ) { $max_processes = shift @ARGV; }
-		elsif ($_ =~ /^-h$/ ) { print $usage; exit; }
+		if ( $_ =~ /^-h$/ ) { die $usage; }
 	}
 }
 

@@ -10,6 +10,8 @@ my $usage = "
 This programme takes single-end and paired-end read files and removes records if either of their reads
 contain an uncalled base, i. e. in the output neither single nor paired-end record should contain an uncalled base.
 The input files must be in fastq format. Quality scores in Phred+64 and Phred+33 are accepted.
+Paired files must have corresponding records in the same order and file names must be the same,
+except for the file name extension (which should be preceded by the only dot in the file name).
 
 $0
 
@@ -30,11 +32,18 @@ my $max_processes = 1;
 my ($glob_single, $glob_paired);
 
 parse_command_line();
-unless( defined($glob_single) && defined($glob_paired) ) { print $usage; exit; }
+unless( defined($glob_single) && defined($glob_paired) ) { print STDERR $usage; exit; }
 
 my @single_end_files = glob($glob_single);
 my @paired_end_files = glob($glob_paired);
 
+# if no single-end or paired-end files are found 
+unless ( @single_end_files and @paired_end_files ) { 
+	print STDERR  "\nyour command line:\n", $0, " ",  "@arg\n";
+	print STDERR  $usage; 
+	exit; 
+}
+print $0, " ", "@arg\n";
 
 # initialise the parallel processing
 my $pm = new Parallel::ForkManager( scalar(@single_end_files) );
@@ -63,15 +72,16 @@ foreach	my $file ( 0..$#single_end_files ) {
 		}
 
 	);
-	if ($discarded =~ /\D/) { print $discarded; }
+	if ($discarded =~ /\D/) { print STDERR $discarded; }
 	else {
-		printf "%s%.2f%s%s%s%s%s", 
-			"Discarded ", $discarded*100/$kept, "% of records from files ", 
-			$single_end_files[$file], " and ", $paired_end_files[$file], ".\n";
+		printf "%s%d%s%s%s%s%.2f%s", 
+			"Discarded ", $discarded, " records from files ", 
+			$single_end_files[$file], " and ", "$paired_end_files[$file] (", $discarded*100/$kept, "%)\n";
 	}
 	$pm->finish;
 }
 $pm->wait_all_children;
+print STDERR "Finished\n";
 
 ##################################################################################
 
@@ -96,6 +106,7 @@ sub rm_records_with_N {
 	unless ( ($fname_p_stub, $ext_p) = ($fname_p =~ /(.+)\.(.+)/) ) {
 		die $!;
 	}
+	if ( $fname_s_stub ne $fname_p_stub ) { die "paired files don't have the same file name stub!\n" }
 	
 	# read in first record of single-end file
 	my $header_s = <$fh_single>;
@@ -119,6 +130,10 @@ sub rm_records_with_N {
 	my $qual_p = <$fh_paired>;
 	if ( !$header_p || !$seq_p || !$qual_head_p || !$qual_p ) { return "$fname_p might be empty.\n"; }
 
+	if ( substr($header_s, 0, -2) ne substr($header_p, 0, -2) ) {
+		die "paired files do not have corresponding records in the same order!\n$header_s\t$header_p\n";
+	}
+
 	# check the input format of the first record of the paired end file
 	die "input file not in .fastq format: $fname_p\n" if
 	       ( $header_p !~ /^@.+$/
@@ -128,8 +143,10 @@ sub rm_records_with_N {
 	       );        
 
 	# open output files
-	open (my $single_out, ">", "$fname_s_stub\_cleaned.$ext_s") or die "Can't write to file $fname_s_stub\_cleaned.$ext_s: $!";
-	open (my $paired_out, ">", "$fname_p_stub\_cleaned.$ext_p") or die "Can't write to file $fname_p_stub\_cleaned.$ext_p: $!";
+	open (my $single_out, ">", "$fname_s_stub\_cleaned.$ext_s") 
+		or die "Can't write to file $fname_s_stub\_cleaned.$ext_s: $!";
+	open (my $paired_out, ">", "$fname_p_stub\_cleaned.$ext_p") 
+		or die "Can't write to file $fname_p_stub\_cleaned.$ext_p: $!";
 
 	# check whether there are uncalled bases in either 
 	# single end or paired end sequence
@@ -185,7 +202,6 @@ sub parse_command_line {
 		if ( $_ =~ /^-p$/ ) { $glob_paired = shift @ARGV; }
 		if ( $_ =~ /^-s$/ ) { $glob_single = shift @ARGV; }
 		if ( $_ =~ /^-t$/ ) { $max_processes = shift @ARGV; }
-		elsif ($_ =~ /^-h$/ ) { print $usage; exit; }
-		
+		elsif ($_ =~ /^-h$/ ) { print STDERR $usage; exit; }	
 	}
 }
