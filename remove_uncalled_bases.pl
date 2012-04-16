@@ -10,6 +10,9 @@ my $usage = "
 This programme takes single-end and paired-end read files and removes records if either of their reads
 contain an uncalled base, i. e. in the output neither single nor paired-end record should contain an uncalled base.
 The input files must be in fastq format. Quality scores in Phred+64 and Phred+33 are accepted.
+Single and paired-end files must have matching records, i. e. the first single end read must belong to the first paired
+end read in a pair of read files. Except for the file ending, single-end and paire-end file names must be the same 
+in a pair of read files, unless you specify the whole file name, i. e. don't use wildcards.
 
 $0
 
@@ -45,8 +48,13 @@ $pm->set_max_procs($max_processes);
 
 foreach	my $file ( 0..$#single_end_files ) {
 	print "Processing files: ", $single_end_files[$file], "\t", $paired_end_files[$file], "\n";
-
-        # start this loop for as many filenames as there are processors available
+	
+	#my ($fname_s_stub, $ext_s) = ($single_end_files[$file] =~ m!/*(.+)\.(.+)$!);
+	#my ($fname_p_stub, $ext_p) = ($paired_end_files[$file] =~ m!/*(.+)\.(.+)$!);
+	#print $fname_s_stub, "\t", $fname_p_stub, "\n";
+	#next;
+        
+	# start this loop for as many filenames as there are processors available
 	$pm->start and next;
 
 
@@ -89,10 +97,10 @@ sub rm_records_with_N {
 	my $kept = 0;
 
 	# get sample names
- 	unless ( ($fname_s_stub, $ext_s) = ($fname_s =~ /(.+)\.(.+)/) ) {
+ 	unless ( ($fname_s_stub, $ext_s) = ($fname_s =~ m!/*(.+)\.(.+)!) ) {
 		die $!;
 	}
-	unless ( ($fname_p_stub, $ext_p) = ($fname_p =~ /(.+)\.(.+)/) ) {
+	unless ( ($fname_p_stub, $ext_p) = ($fname_p =~ m!/*(.+)\.(.+)!) ) {
 		die $!;
 	}
 	
