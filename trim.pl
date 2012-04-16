@@ -70,6 +70,7 @@ foreach my $file (@files_to_trim) {
 	
 }
 $pm->wait_all_children;
+print "Finished\n";
 
 ############################################
 
@@ -143,7 +144,7 @@ sub parse_command_line {
         	elsif ($_ =~ /^-i$/) { $glob = shift @ARGV; }
         	elsif ($_ =~ /^-b$/) { $offset = abs(shift @ARGV); }
         	elsif ($_ =~ /^-e$/) { $trim_length  = 0 - abs(shift @ARGV); } 
-        	elsif ($_ =~ /^-h$/) { print $usage; }
+        	elsif ($_ =~ /^-h$/) { die $usage; }
 	}
 
 }
