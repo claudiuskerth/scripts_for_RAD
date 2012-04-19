@@ -50,10 +50,10 @@ foreach my $file (@files_to_trim) {
 	$pm->start and next;
 #	print $file, "\n";
 
-	my ($sample_name, $ext) = $file =~ /^(.+)\.(.+)$/;
+	my ($sample_name, $ext) = $file =~ m#.*/(.+)\.(.+)$#;
 	
 	# open single end file 
-        open my $single_in, '<', "./$file"
+        open my $single_in, '<', "$file"
           or die "Can't open input file $file!\n";
     
     	trim(
@@ -70,7 +70,7 @@ foreach my $file (@files_to_trim) {
 	
 }
 $pm->wait_all_children;
-print "Finished\n";
+print STDERR "Finished\n";
 
 ############################################
 

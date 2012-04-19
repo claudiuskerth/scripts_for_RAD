@@ -21,6 +21,8 @@ $0
 -t the number of threads to run (default: 1)
 \n";
 
+print "\n****printing to output files is currently outcommented for testing purposes!****\n";
+
 # Non-core modules
 eval {
     require Parallel::ForkManager;
@@ -30,6 +32,7 @@ die "remove_uncalled_bases.pl requires the CPAN module Parallel::ForkManager for
 
 my $max_processes = 1;
 my ($glob_single, $glob_paired);
+my @arg = @ARGV;
 
 parse_command_line();
 unless( defined($glob_single) && defined($glob_paired) ) { print STDERR $usage; exit; }
@@ -43,7 +46,10 @@ unless ( @single_end_files and @paired_end_files ) {
 	print STDERR  $usage; 
 	exit; 
 }
+
+# start logging the programme run
 print $0, " ", "@arg\n";
+print `date`;
 
 # initialise the parallel processing
 my $pm = new Parallel::ForkManager( scalar(@single_end_files) );
@@ -56,11 +62,6 @@ $pm->set_max_procs($max_processes);
 foreach	my $file ( 0..$#single_end_files ) {
 	print "Processing files: ", $single_end_files[$file], "\t", $paired_end_files[$file], "\n";
 	
-	#my ($fname_s_stub, $ext_s) = ($single_end_files[$file] =~ m!/*(.+)\.(.+)$!);
-	#my ($fname_p_stub, $ext_p) = ($paired_end_files[$file] =~ m!/*(.+)\.(.+)$!);
-	#print $fname_s_stub, "\t", $fname_p_stub, "\n";
-	#next;
-        
 	# start this loop for as many filenames as there are processors available
 	$pm->start and next;
 
@@ -77,15 +78,18 @@ foreach	my $file ( 0..$#single_end_files ) {
 		}
 
 	);
-	if ($discarded =~ /\D/) { print STDERR $discarded; }
+	if (!defined($discarded)) { print STDERR "Error with discarded count from sample $single_end_files[$file]!\n;" }
 	else {
 		printf "%s%d%s%s%s%s%.2f%s", 
 			"Discarded ", $discarded, " records from files ", 
 			$single_end_files[$file], " and ", "$paired_end_files[$file] (", $discarded*100/$kept, "%)\n";
 	}
+
 	$pm->finish;
+
 }
 $pm->wait_all_children;
+print `date`;
 print STDERR "Finished\n";
 
 ##################################################################################
@@ -105,10 +109,10 @@ sub rm_records_with_N {
 	my $kept = 0;
 
 	# get sample names
- 	unless ( ($fname_s_stub, $ext_s) = ($fname_s =~ m!/*(.+)\.(.+)!) ) {
+ 	unless ( ($fname_s_stub, $ext_s) = ($fname_s =~ m/(.+)\.(.+)/) ) {
 		die $!;
 	}
-	unless ( ($fname_p_stub, $ext_p) = ($fname_p =~ m!/*(.+)\.(.+)!) ) {
+	unless ( ($fname_p_stub, $ext_p) = ($fname_p =~ m/(.+)\.(.+)/) ) {
 		die $!;
 	}
 	if ( $fname_s_stub ne $fname_p_stub ) { die "paired files don't have the same file name stub!\n" }
@@ -148,20 +152,20 @@ sub rm_records_with_N {
 	       );        
 
 	# open output files
-	open (my $single_out, ">", "$fname_s_stub\_cleaned.$ext_s") 
-		or die "Can't write to file $fname_s_stub\_cleaned.$ext_s: $!";
-	open (my $paired_out, ">", "$fname_p_stub\_cleaned.$ext_p") 
-		or die "Can't write to file $fname_p_stub\_cleaned.$ext_p: $!";
+#	open (my $single_out, ">", "$fname_s_stub\_cleaned.$ext_s") 
+#		or die "Can't write to file $fname_s_stub\_cleaned.$ext_s: $!";
+#	open (my $paired_out, ">", "$fname_p_stub\_cleaned.$ext_p") 
+#		or die "Can't write to file $fname_p_stub\_cleaned.$ext_p: $!";
 
 	# check whether there are uncalled bases in either 
 	# single end or paired end sequence
 	$N_count = ($seq_s =~ tr/N/N/) + ($seq_p =~ tr/N/N/);
 	
 	if ($N_count == 0) {
-		print $single_out 
-			$header_s, $seq_s, $qual_head_s, $qual_s;
-		print $paired_out
-			$header_p, $seq_p, $qual_head_p, $qual_p;
+#		print $single_out 
+#			$header_s, $seq_s, $qual_head_s, $qual_s;
+#		print $paired_out
+#			$header_p, $seq_p, $qual_head_p, $qual_p;
 		$kept++;
                                                                   
 	}else{ $discarded++; }	
@@ -186,10 +190,10 @@ sub rm_records_with_N {
 		$N_count = ($seq_s =~ tr/N/N/) + ($seq_p =~ tr/N/N/);
 		
 		if ($N_count == 0) {
-			print $single_out 
-				$header_s, $seq_s, $qual_head_s, $qual_s;
-			print $paired_out
-				$header_p, $seq_p, $qual_head_p, $qual_p;
+#			print $single_out 
+#				$header_s, $seq_s, $qual_head_s, $qual_s;
+#			print $paired_out
+#				$header_p, $seq_p, $qual_head_p, $qual_p;
 			$kept++;
 
 		}else{ $discarded++; }	

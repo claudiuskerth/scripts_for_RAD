@@ -16,20 +16,27 @@ except for the file name extension (which should be preceded by the only dot in 
 
 $0
 
--s single end file name or wildcard expression like \"*.fq_1\"
-(wildcards must be protected with quotation marks against shell expansion)
--p paired end file name or wildcard expression like \"*.fq_2\"
--f1 pattern to search for in the single end sequences 
-    Can include perl regular expressions (e. g. \"^CGAG\", which searches for \"CGAG\" 
-    at the beginning of the sequences) when search for exact matches is switched on. 
-    Otherwise, the given pattern must only contain the string to search for.
--f2 pattern to search for in the paired end sequences. Comments for \"f1\" apply.
--t number of processors available
--e filter only exact matches. By default, the script searches for the given pattern at the 
-   beginning of sequences and allows for one mismatch
--m number of mismatches allowed when filtering for sequences with matching patterns
-   Is ignored when exact matches is switched on.
+-s   single end file name or wildcard expression like \"*.fq_1\"
+     (wildcards must be protected with quotation marks against shell expansion)
+-p   paired end file name or wildcard expression like \"*.fq_2\"
+-f1  pattern to search for in the single end sequences 
+     Can include perl regular expressions (e. g. \"^CGAG\", which searches for \"CGAG\" 
+     at the beginning of the sequences) when search for exact matches is switched on. 
+     Otherwise, the given pattern must only contain the string to search for.
+-f2  pattern to search for in the paired end sequences. Comments for \"f1\" apply.
+-t   number of processors available
+-e   filter only exact matches. By default, the script searches for the given pattern at the 
+     beginning of sequences and allows for one mismatch
+-m   number of mismatches allowed when filtering for sequences with matching patterns
+     Is ignored when exact matches is switched on.
+-pos starting position of the search sub-sequence in the read, starting with 1 (default is 1)
+     has only an effect on non-exact searches, i. e. when \"-e\" switch is not turned on
+-inv invert match, print out records that don't match the search pattern
 \n";
+
+#print "\n****printing to output files is currently outcommented for testing purposes!****\n";
+
+print STDERR `date`;
 
 # Non-core modules
 eval {
@@ -41,15 +48,16 @@ die "grep_true_RADtags.pl requires the CPAN module Parallel::ForkManager for par
 # initialize variables
 my $max_processes = 1;
 my $mismatch = 1;
-my ($glob_single, $glob_paired, $pattern_s, $pattern_p, $filtered, $exact);
+my $start_position = 0;
+my ($glob_single, $glob_paired, $pattern_s, $pattern_p, $filtered, $exact, $invert_match);
 my @arg = @ARGV;
 
 
 parse_command_line();
 
 unless ( defined($glob_single) && defined($glob_paired) && ( defined($pattern_s) or defined($pattern_p) ) ) {
-	print STDERR "\nyour command line:\n", $0, " ",  "@arg\n";
-        print STDERR $usage;
+	print "\nyour command line:\n", $0, " ",  "@arg\n";
+        print $usage;
         exit;
 }
 
@@ -58,12 +66,12 @@ my @paired_end_files = sort glob($glob_paired);
 
 # if no single-end or paired-end files are found 
 unless ( @single_end_files and @paired_end_files ) { 
-	print STDERR  "\nyour command line:\n", $0, " ",  "@arg\n";
-	print STDERR  $usage; 
+	print "\nyour command line:\n", $0, " ",  "@arg\n";
+	print $usage; 
 	exit; 
 }
 
-print "command line used for this run:\n", $0, " ", "@arg", $usage;
+print STDERR "command line used for this run:\n", $0, " ", "@arg", $usage;
 
 # initialize parallel processing
 my $pm = new Parallel::ForkManager( scalar(@single_end_files) );
@@ -73,7 +81,7 @@ my ($discarded, $kept, $fname_s_stub);
 
 # iterate over the paired files
 foreach my $file ( 0..$#single_end_files ) {
-       print  "Scanning reads from files: ", $single_end_files[$file], "\t", $paired_end_files[$file], "\n";
+       print "Scanning reads from files: ", $single_end_files[$file], "\t", $paired_end_files[$file], "\n";
 
        # start this loop for as many filenames as there are processors available
        $pm->start and next;
@@ -89,12 +97,15 @@ foreach my $file ( 0..$#single_end_files ) {
 			paired_end_name => $paired_end_files[$file]
 		}
        );	 
-       printf  "%s%d%s%.2f%s", 
+       printf "%s%d%s%.2f%s", 
+       		"discarded ", $discarded, " records from sample \"$fname_s_stub\" (", $discarded*100/$kept, "%)\n"; 
+       printf STDERR "%s%d%s%.2f%s", 
        		"discarded ", $discarded, " records from sample \"$fname_s_stub\" (", $discarded*100/$kept, "%)\n"; 
        $pm->finish;       
 }
 $pm->wait_all_children;
-print STDERR "Finished\n";
+print "Finished\n";
+print STDERR `date`;
 exit;
 
 #############################################################################
@@ -168,7 +179,7 @@ sub filter_true_tags {
 	# open output files
 	open (my $single_out, ">", "$fname_s_stub\_trueTags.fq_1") 
 		or die "Can't write to file $fname_s_stub\_trueTags.fq_1: $!";
-	open(my $paired_out, ">", "$fname_p_stub\_trueTags.fq_2")
+	open (my $paired_out, ">", "$fname_p_stub\_trueTags.fq_2")
 		or die "Can't write to file $fname_p_stub\_trueTags.fq_2: $!";
 	
 	# if specified on the command line, 
@@ -227,6 +238,8 @@ sub parse_command_line {
 		if ( $_ =~ /^-f2$/ ) { $pattern_p = shift @ARGV; }
 		if ( $_ =~ /^-e$/ ) { $exact = "True"; }
 		if ( $_ =~ /^-m$/ ) { $mismatch = shift @ARGV; }
+		if ( $_ =~ /^-pos$/ ) { $start_position = (shift @ARGV)-1; }
+		if ( $_ =~ /^-inv$/ ) { $invert_match = "True"; }
 		if ( $_ =~ /^-h$/ ) { die $usage; }
 	}
 }
@@ -264,33 +277,57 @@ sub filter_close_matches {
 	my $kept = 0;
 
 	if ( $pattern_s && $pattern_p ) {
-		$kmer_s = substr($seq_s, 0, length($pattern_s));
-		$kmer_p = substr($seq_p, 0, length($pattern_p));
+		$kmer_s = substr($seq_s, $start_position, length($pattern_s));
+		$kmer_p = substr($seq_p, $start_position, length($pattern_p));
 		$diff_s = ($kmer_s ^ $pattern_s) =~ tr[\001-255][];
 		$diff_p = ($kmer_p ^ $pattern_p) =~ tr[\001-255][];
-		if ( $diff_s <= $mismatch and $diff_p <= $mismatch ) { 
-			print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-			print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-			$kept++;
-		}else { $discarded++; }
+		if ($invert_match) {
+			unless ( $diff_s <= $mismatch and $diff_p <= $mismatch ) { 
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}else {
+			if ( $diff_s <= $mismatch and $diff_p <= $mismatch ) { 
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}
 	}
 	elsif( $pattern_s ) {
-		$kmer_s = substr($seq_s, 0, length($pattern_s));
+		$kmer_s = substr($seq_s,  $start_position, length($pattern_s));
 		$diff_s = ($kmer_s ^ $pattern_s) =~ tr[\001-\255][];
-		if ( $diff_s <= $mismatch ) { 
-			print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-			print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-			$kept++;
-		}else { $discarded++; }
+		if ($invert_match) {
+			unless ( $diff_s <= $mismatch ) { 
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}else {
+			if ( $diff_s <= $mismatch ) { 
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}
 	}
 	elsif ( $pattern_p ) {
-		$kmer_p = substr($seq_p, 0, length($pattern_p));
+		$kmer_p = substr($seq_p, $start_position, length($pattern_p));
 		$diff_p = ($kmer_p ^ $pattern_p) =~ tr[\001-\255][];
-		if ( $diff_p <= $mismatch ) { 
-			print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-			print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-			$kept++;
-		}else { $discarded++; }
+		if ($invert_match) {
+			unless ( $diff_p <= $mismatch ) { 
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}else {
+			if ( $diff_p <= $mismatch ) { 
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}
 	}else{ die "please provide at least one search pattern\n", $usage; }
 	
 
@@ -311,33 +348,72 @@ sub filter_close_matches {
 		}
 
 		if ( $pattern_s && $pattern_p ) {
-			$kmer_s = substr($seq_s, 0, length($pattern_s));
-			$kmer_p = substr($seq_p, 0, length($pattern_p));
+			$kmer_s = substr($seq_s, $start_position, length($pattern_s));
+			$kmer_p = substr($seq_p, $start_position, length($pattern_p));
 			$diff_s = ($kmer_s ^ $pattern_s) =~ tr[\001-255][];
 			$diff_p = ($kmer_p ^ $pattern_p) =~ tr[\001-255][];
-			if ( $diff_s <= $mismatch  and $diff_p <= $mismatch ) { 
-				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-				$kept++;
-			}else { $discarded++; }
+			if ($invert_match) {
+				unless ( $diff_s <= $mismatch and $diff_p <= $mismatch ) { 
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}else {
+				if ( $diff_s <= $mismatch and $diff_p <= $mismatch ) { 
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}
+#			if ( $diff_s <= $mismatch  and $diff_p <= $mismatch ) { 
+#				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+#				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+#				$kept++;
+#			}else { $discarded++; }
 		}
 		elsif( $pattern_s ) {
-			$kmer_s = substr($seq_s, 0, length($pattern_s));
+			$kmer_s = substr($seq_s, $start_position, length($pattern_s));
 			$diff_s = ($kmer_s ^ $pattern_s) =~ tr[\001-\255][];
-			if ( $diff_s <= $mismatch ) { 
-				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-				$kept++;
-			}else { $discarded++; }
+			if ($invert_match) {
+				unless ( $diff_s <= $mismatch ) { 
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}else {
+				if ( $diff_s <= $mismatch ) { 
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}
+			#if ( $diff_s <= $mismatch ) { 
+			#	print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+			#	print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+			#	$kept++;
+			#}else { $discarded++; }
 		}
 		elsif ( $pattern_p ) {
-			$kmer_p = substr($seq_p, 0, length($pattern_p));
+			$kmer_p = substr($seq_p, $start_position, length($pattern_p));
 			$diff_p = ($kmer_p ^ $pattern_p) =~ tr[\001-\255][];
-			if ( $diff_p <= $mismatch ) { 
-				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-				$kept++;
-			}else { $discarded++; }
+			if ($invert_match) {
+				unless ( $diff_p <= $mismatch ) { 
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}else {
+				if ( $diff_p <= $mismatch ) { 
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}
+			#if ( $diff_p <= $mismatch ) { 
+			#	print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+			#	print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+			#	$kept++;
+			#}else { $discarded++; }
 		}
 	}
 	return $discarded, $kept;
@@ -349,7 +425,7 @@ sub filter_close_matches {
 # RECEIVES: the two file handles of the paired files, the two file handles
 #	    for the output files, the first two records of the paired files 
 #	    and references to the counting variables $discarded and $kept
-# RETURNS:  nothing, prints to file
+# RETURNS:  nothing, #prints to file
 ##############################################################################
 sub filter_exact_matches {
 
@@ -373,25 +449,49 @@ sub filter_exact_matches {
 	# if a search pattern for the single end reads and the paired-end
 	# reads has been been provided on the command line
 	if ( $pattern_s && $pattern_p ) {
-		if ( $seq_s =~ /$pattern_s/o and $seq_p =~ /$pattern_p/o ) { 
-			print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-			print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-			$kept++;
-		}else { $discarded++; }
+		if ($invert_match) {
+			unless ( $seq_s =~ /$pattern_s/o and $seq_p =~ /$pattern_p/o ) { 
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}else {
+			if ( $seq_s =~ /$pattern_s/o and $seq_p =~ /$pattern_p/o ) { 
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}
 	}
 	elsif ( $pattern_s ) {
-		if ( $seq_s =~ /$pattern_s/o ) {
-			print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-			print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-			$kept++;
-		}else { $discarded++; }
+		if ($invert_match) {
+			unless ( $seq_s =~ /$pattern_s/o ) {
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}else {
+			if ( $seq_s =~ /$pattern_s/o ) {
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}
 	}
 	elsif ( $pattern_p ) {
-		if ( $seq_p =~ /$pattern_p/o ) {
-			print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-			print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-			$kept++;
-		}else { $discarded++; }
+		if ($invert_match) {
+			unless ( $seq_p =~ /$pattern_p/o ) {
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}else {
+			if ( $seq_p =~ /$pattern_p/o ) {
+				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+				$kept++;
+			}else { $discarded++; }
+		}
 	}else{ die "please provide at least one search pattern\n", $usage; }
 	                                                                                                                                      
 	# now read in the rest of the two paired files
@@ -413,30 +513,53 @@ sub filter_exact_matches {
 		# if a search pattern for the single end reads and the paired-end
 		# reads has been been provided on the command line
 		if ( $pattern_s && $pattern_p ) {
-			if ( $seq_s =~ /$pattern_s/o and $seq_p =~ /$pattern_p/o ) { 
-				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-				$kept++;
-			}else { $discarded++; }
+			if ($invert_match) {
+				unless ( $seq_s =~ /$pattern_s/o and $seq_p =~ /$pattern_p/o ) { 
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}else {
+				if ( $seq_s =~ /$pattern_s/o and $seq_p =~ /$pattern_p/o ) { 
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}
 		}
 		# if only a search pattern for the single-end reads has been provided
 		# on the command line
 		elsif ( $pattern_s ) {
-			if ( $seq_s =~ /$pattern_s/o ) {
-				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-	        		print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-				$kept++;
-			}else { $discarded++; }
-		
+			if ($invert_match) {
+				unless ( $seq_s =~ /$pattern_s/o ) {
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+	        			print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}else {
+				if ( $seq_s =~ /$pattern_s/o ) {
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+	        			print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}
 		}
 		# if only a search pattern for the paired-end reads has been provided on the 
 		# command line
 		elsif ( $pattern_p ) {
-			if ( $seq_p =~ /$pattern_p/o ) {
-				print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
-				print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
-				$kept++;
-			}else { $discarded++; }
+			if ($invert_match) {
+				unless ( $seq_p =~ /$pattern_p/o ) {
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}else {
+				if ( $seq_p =~ /$pattern_p/o ) {
+					print $single_out $header_s, $seq_s, $qual_head_s, $qual_s; 
+					print $paired_out $header_p, $seq_p, $qual_head_p, $qual_p;
+					$kept++;
+				}else { $discarded++; }
+			}
 		}	
 	}
 	return $discarded, $kept;
