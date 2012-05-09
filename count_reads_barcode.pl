@@ -1,6 +1,13 @@
 #!/usr/bin/env perl
 use strict; use warnings;
-
+#
+#==========================================================================
+#  This program is free software; you can redistribute it and/or modify 
+#  it under the terms of the GNU General Public License as published by 
+#  the Free Software Foundation; either version 2 of the License, or    
+#  (at your option) any later version.                                  
+#==========================================================================
+#
 #open(IN, "<", $ARGV[0]) or die $!;
 
 # pipe the read input into this programme
