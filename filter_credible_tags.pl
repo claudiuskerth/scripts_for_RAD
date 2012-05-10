@@ -97,7 +97,11 @@ my @num_samples =  @header[$deleveraged_col+1..$#header];
 
 # print out headers
 print join('	', 
-	@header , 
+	@header[0..$deleveraged_col],
+    "Num_geno_calls",
+	"Geno_calls_PopLeft",
+	"Geno_calls_PopRight",
+	@header[$deleveraged_col+1..$#header],	
 	"H_obs_overall", 
 	"H_exp_overall", 
 	"F_is_overall", 
@@ -121,7 +125,7 @@ my $dodgy_tag_count = 0;
 my $consensus_het = 0; # counts loci which contain "consensus/consensus" genotype calls, which is dodgy
  # :TODO      :09/05/12 15:07:08:CEK: insert subroutine, that checks that the number of genotype calls equals the number of parental matches
 
-# read in row by row
+
 while (<IN>) {
 	# stop reading in the file, when meeting a blank line
 	# and write report to standard error 
@@ -133,13 +137,19 @@ while (<IN>) {
 		# otherwise it would truncate empty fields at the end of the row
 		my @row = split( /\t/, $_, @header );
 		
-		$message = CHECK_LOCUS(\@row);
+	my ($message, $num_geno_calls, $geno_calls_PopLeft, $geno_calls_PopRight) = CHECK_LOCUS(\@row);
 		
 		if ( $message ) {
 			print STDERR $row[0], "\t$message";
 		}else {
 			$locus_ok++;
-			print join("	", @row), "\n";
+			print join("	", @row[0..$deleveraged_col],
+			 					$num_geno_calls, 
+								$geno_calls_PopLeft, 
+								$geno_calls_PopRight,
+								@row[$deleveraged_col+1..$#row]
+			 		  );
+			print "\n";
 		}
 	}
 }
@@ -179,7 +189,7 @@ sub CHECK_LOCUS {
 
 	# check whether there are more matches to the catalog than
 	# genotype calls:
-	my $filter_message = CHECK_CATALOG_MATCHES($row); 
+	my ($filter_message, $num_geno_calls) = CHECK_CATALOG_MATCHES($row); 
 	return $filter_message if $filter_message;
 
 	my %hap_count = (); # stores counts for each haplotype in each pop 
@@ -241,7 +251,7 @@ sub CHECK_LOCUS {
 			$filter_message = "No genotype called for PopLeft at catalog locus ". ${$row}[0] . ".\n";
 			$no_PopLeft_geno++;
 		}
-		return($filter_message); 	
+		return($filter_message, $num_geno_calls, $geno_count{PopLeft}->{all}, $geno_count{PopRight}->{all}); 	
 		
 	# if the deleveraging algorithm has been turned on by ustacks
 	}elsif ( ${$row}[$deleveraged_col] > 0 ) { 
@@ -269,6 +279,7 @@ sub CHECK_CATALOG_MATCHES {
 
 	my	( $row )	= @_;
 
+	my $message = "";
 	my $geno_calls = 0;
 	
 	foreach my $ind ( @{$row}[$deleveraged_col+1..$#{$row}] ) {
@@ -277,10 +288,11 @@ sub CHECK_CATALOG_MATCHES {
 	
 	if ( $geno_calls < ${$row}[$num_pare] ) {
 		$cat_match++;
-		return("The catalog locus with the ID ${$row}[0] has more matches of to the catalog than gentoype calls ... going to ignore\n");
+		$message = "The catalog locus with the ID ${$row}[0] has more matches to the catalog than genotype calls ... going to ignore\n";
+		return($message, $geno_calls);
 	}
+	return($message, $geno_calls);
 	
-	return ;
 } ## --- end sub CHECK_CATALOG_MATCHES
 
 

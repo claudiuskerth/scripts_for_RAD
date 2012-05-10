@@ -1,13 +1,51 @@
-#!/usr/bin/env perl
-use strict; use warnings;
+#!/usr/bin/env perl 
+#===============================================================================
+#
+#         FILE: extract_tags_from_export.pl
+#
+#        USAGE: ./extract_tags_from_export.pl <file_with_ids> <file_to_extract_from>
+#
+#  DESCRIPTION: This script is extractimg those loci from an export_sql.pl output
+#  				which are found in another file (after filtering, for instance). 
+#
+#      OPTIONS: ---
+# REQUIREMENTS: ---
+#         BUGS: ---
+#        NOTES: ---
+#       AUTHOR: Claudius Kerth (CEK), c.kerth[at]sheffield.ac.uk
+# ORGANIZATION: 
+#      VERSION: 1.0
+#      CREATED: 10/05/12 18:03:39
+#     REVISION: ---
+#===============================================================================
 
-my $usage = "\n$0 <file_with_ids> <file_to_extract_from>\n\n" . 
-"prints to STDOUT, i. e. pipe into file!\n" .
-"The file with ids should be in the format of the output from stacks export_sql.pl.\n" .
-"This script will extract the catalog ids from this file, so you don't have to prepare\n" .
-"a whitelist file.\n\n";
+
+#
+#==========================================================================
+#  This program is free software; you can redistribute it and/or modify 
+#  it under the terms of the GNU General Public License as published by 
+#  the Free Software Foundation; either version 2 of the License, or    
+#  (at your option) any later version.                                  
+#==========================================================================
+#
+
+use strict;
+use warnings;
+
+my $usage = "
+$0 <file_with_ids> <file_to_extract_from>
+
+This script is intended to extract certain rows from a \".tsv\" sql export file obtained with \"export_sql.pl\"
+from a \"stacks\" database. The \"file_with_ids\" should contain the catalog ids in 
+its first column and rows with matching catalog ids are extracted from the \"file_to_extract_from\".
+The script prints to STDOUT, i. e. pipe into file!
+The file with ids should be in the format of the output from stacks export_sql.pl.
+The script will extract the catalog ids from this file, so you don't have to prepare
+a whitelist file.\n
+";
 
 die $usage unless (@ARGV == 2); 
+print $usage if $ARGV[0] =~ /-h|-help/;
 
 # get a list of catalog ids which you want to extract from another export_sql.pl output file:
 my $file1 = shift;
@@ -15,7 +53,7 @@ my $file1 = shift;
 system("tail -n +2 $file1 | cut -f 1 > temp1") == 0 or die $usage;
 
 open(IN1, "<temp1") or die $usage;
-my @IDs = <IN1>;
+my @IDs = <IN1>; # slurp in the whole file
 close IN1;
 system("rm temp1") == 0 or die $usage;
 
@@ -34,7 +72,7 @@ my $col_num = @line;
 print join("	", @line);
 
 my %tags;
-# store the data in hash with catalog locus ids as keys
+# store the data in a hash with catalog locus ids as keys
 while($line = <IN2>) {
 	@line = split(/\t/, $line, $col_num);
 	$tags{$line[0]} = join("	", @line[1..$#line]);
