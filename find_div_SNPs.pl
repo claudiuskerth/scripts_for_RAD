@@ -421,13 +421,14 @@ sub FST {
 #     SEE ALSO: n/a
 #===============================================================================
 sub PARSE_COMMAND_LINE {
-	die "You have to specify the input file with the \"-i\" switch.\n$usage" if @ARGV == 0;
+	my $i = 0;
 	while(@ARGV){
 		$_ = shift @ARGV;
 		if ( $_ =~ /^-h|help$/ ) { die $usage; }
 		if ( $_ =~ /^-p$/ ) { $only_most_div_SNP = "True"; }
 		if ( $_ =~ /^-t$/ ) { $Fst_threshold = shift @ARGV; }
-		if ( $_ =~ /^-i$/ ) { $infile = shift @ARGV; }
+		if ( $_ =~ /^-i$/ ) { $infile = shift @ARGV; $i++; }
 		if ( $_ =~ /^-m$/ ) { $min_geno_calls = shift @ARGV; }
 	}
+	die "You have to specify the input file with the \"-i\" switch.\n$usage" unless $i;
 }
