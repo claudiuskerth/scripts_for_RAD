@@ -394,10 +394,17 @@ sub FST {
 #				/ ( $p_mean * (1-$p_mean) );
 	}
 	
-	# calculate average within population expected heterozygosity for the SNP
-	my $within_pop_a_het = 2 * $p_Pop_a * (1-$p_Pop_a);	
-	my $within_pop_b_het = 2 * $p_Pop_b * (1-$p_Pop_b);
-	my $mean_within_pop_het = ( $within_pop_a_het + $within_pop_b_het ) / 2;
+#-------------------------------------------------------------------------------
+# calculate average within population expected heterozygosity for the SNP
+#-------------------------------------------------------------------------------
+	# Version 1:
+#	my $within_pop_a_het = 2 * $p_Pop_a * (1-$p_Pop_a);	
+#	my $within_pop_b_het = 2 * $p_Pop_b * (1-$p_Pop_b);
+#	my $mean_within_pop_het = ( $within_pop_a_het + $within_pop_b_het ) / 2;
+
+	# Version 2:
+	my $mean_within_pop_het  = 2 * $p_mean * (1-$p_mean);
+	
 		
 	return ( $F_st, $mean_within_pop_het) ;
 } ## --- end sub FST
