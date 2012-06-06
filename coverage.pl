@@ -64,12 +64,17 @@ my ($last_sample_col) = grep { $line[$_] =~ /$last_sample_name/  } 0..$#line;
 # print headers and add two new columns
 print join("	", @line[0..$first_sample_col-1], 
 		"geno_calls", 
-		"average coverage/allele", 
+		"average_coverage/allele", 
+		"total_coverage/locus",
 		 @line[$first_sample_col..$#line]);
 
+open(ERR, ">coverage.err") or die $!;
+
 my ($sum_cov, $mean_cov, $geno_calls, $allele_count);
+
 # while reading in loci
 while ($line = <IN>) {
+	last if $line =~ /^$/;
 	chomp $line;
 	@line = split(/\t/, $line, $num_col);
 	$sum_cov = 0;
@@ -83,24 +88,45 @@ while ($line = <IN>) {
 			$allele_count++;
 			# if the individual is heterozygous
 			if ($depth =~ /\//) { 
+				# the following 4 lines will count all reported allele depths
+				# even the allele depth of the third and fourth "allele", etc.
+				# in a gentoype
+				my @allele = split(/\//, $depth);
+				foreach my $allele ( @allele ) {
+					$sum_cov += $allele;
+				}
 				$allele_count++;
-				$depth =~ /(\d+)\/(\d+)/;	
-				$sum_cov += $1;
-				$sum_cov += $2;
-				die "het allele depth not stored\n" if ( $1 eq "" || $2 eq ""); 
+				# the next three lines will only count allele depth in heterozygous genotype calls
+#				$depth =~ /(\d+)\/(\d+)/;	
+#				$sum_cov += $1;
+#				$sum_cov += $2;
+#				die "het allele depth not stored\n" if ( $1 eq "" || $2 eq ""); 
 			}else {
 				$sum_cov += $depth;
 			}
 		}
 	}
+	unless ($allele_count) { 
+#		print STDERR "Found no allele depth for catalog locus $line[0]!\n"; next; 
+		print ERR join("	", @line[0..$first_sample_col-1], 
+			$geno_calls, 
+			$mean_cov, 
+			"NA",
+			@line[$first_sample_col..$#line]
+		);
+		print ERR "\n";
+		next;
+	}
 	# calculate average read coverage per allele for this locus
-	$mean_cov = $sum_cov/$allele_count;
+#	$mean_cov = $sum_cov/$allele_count;
 	# print out
 	print join("	", @line[0..$first_sample_col-1], 
 			$geno_calls, 
 			$mean_cov, 
-			@line[$first_sample_col..$#line],
+			$sum_cov,
+			@line[$first_sample_col..$#line]
 		);
 	print "\n";
 }
 close IN;
+close ERR;
