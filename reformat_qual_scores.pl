@@ -22,7 +22,7 @@
 use strict;
 use warnings;
 
-$usage = "
+my $usage = "
 $0 <input files>
 
 This script is designed to convert the Phred+33 quality score
@@ -32,7 +32,7 @@ and one quality file (both in fasta format).
 \n";
 
 
-unless (@ARGV>0) die $usage;
+die $usage unless (@ARGV>0);
 
 # foreach input file given on the command line (can be a glob expanded by the shell)
 foreach(@ARGV){
@@ -43,10 +43,10 @@ foreach(@ARGV){
 	# open output file for fasta sequence
     open(OUT_SEQ, ">", $_) or die $!;
 #	print $_, "\n";
-	# replace file ending
-	s|\.fasta|\.qual|;
+#	# replace file ending
+#	s|\.fasta|\.qual|;
 	# open output file for quality scores
-	open(OUT_QUAL, ">", $_) or die $!;
+	open(OUT_QUAL, ">", "$_.qual") or die $!;
 #	print $_, "\n";
 	# read in input file line by line
 	while(<IN>){
