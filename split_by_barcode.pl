@@ -120,6 +120,7 @@ while($head = <IN>){
 			# strip barcode sequence of read if specified on the command line
 			if ($strip_barcode){
 				$seq = substr($seq, $bc_length);
+				$qual = substr($qual, $bc_length);
 			}
 			# print to the file of the individual to which this barcode belongs
 			print $fh{$ind}->print($head, $seq, $qh, $qual);
