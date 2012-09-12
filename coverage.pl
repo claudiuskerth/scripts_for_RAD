@@ -29,8 +29,10 @@ $0 <input_file_with_allele_depths>
 
 Prints to STDOUT, i. e. pipe into file!
 This script takes an sql export output file containing allele depths created with \"export_sql.pl\" from a \"stacks\"
-database and calculates average coverage per allele for each locus over the whole sample. This is reported in an extra
-column that is inserted in the output table.
+database and calculates average coverage per locus, the number of genotype calls and total coverage for each locus 
+over the whole sample. These are reported each in an extra column that is inserted in the output table.
+The script is interactive and will first ask for the column headers of the leftmost and rightmost sample in the 
+export_sql.pl output table. 
 \n";
 
 die $usage unless @ARGV == 1;
@@ -57,20 +59,24 @@ chomp $last_sample_name;
 
 # get the index for the column of the leftmost sample in the table 
 my ($first_sample_col) = grep { $line[$_] =~ /$first_sample_name/  } 0..$#line;
-
+die "I couldn't find the leftmost sample in the table.\n" unless ($first_sample_col);
+print STDERR "$line[$first_sample_col]\n";
 # get the index for the column of the rightmost sample in the table 
 my ($last_sample_col) = grep { $line[$_] =~ /$last_sample_name/  } 0..$#line;
+die "I couldn't find the rightmost sample in the table.\n" unless ($last_sample_col);
+print STDERR "$line[$last_sample_col]\n";
 
 # print headers and add two new columns
 print join("	", @line[0..$first_sample_col-1], 
 		"geno_calls", 
-		"average_coverage/allele", 
+		"average_coverage/locus", 
 		"total_coverage/locus",
 		 @line[$first_sample_col..$#line]);
 
 open(ERR, ">coverage.err") or die $!;
 
-my ($sum_cov, $mean_cov, $geno_calls, $allele_count);
+my ($sum_cov, $mean_cov, $geno_calls);
+my $no_geno_call = 0;
 
 # while reading in loci
 while ($line = <IN>) {
@@ -80,12 +86,10 @@ while ($line = <IN>) {
 	$sum_cov = 0;
 	$mean_cov = 0;
 	$geno_calls = 0;
-	$allele_count = 0;
 	# foreach individual
 	foreach my $depth ( @line[$first_sample_col..$last_sample_col] ){
 		if ($depth ne "") { 
 			$geno_calls++;
-			$allele_count++;
 			# if the individual is heterozygous
 			if ($depth =~ /\//) { 
 				# the following 4 lines will count all reported allele depths
@@ -95,7 +99,6 @@ while ($line = <IN>) {
 				foreach my $allele ( @allele ) {
 					$sum_cov += $allele;
 				}
-				$allele_count++;
 				# the next three lines will only count allele depth in heterozygous genotype calls
 #				$depth =~ /(\d+)\/(\d+)/;	
 #				$sum_cov += $1;
@@ -106,8 +109,9 @@ while ($line = <IN>) {
 			}
 		}
 	}
-	unless ($allele_count) { 
-#		print STDERR "Found no allele depth for catalog locus $line[0]!\n"; next; 
+	unless ($geno_calls) { 
+		print STDERR "Found no allele depth for catalog locus $line[0]!\n"; 
+		$no_geno_call++;
 		print ERR join("	", @line[0..$first_sample_col-1], 
 			$geno_calls, 
 			$mean_cov, 
@@ -117,8 +121,8 @@ while ($line = <IN>) {
 		print ERR "\n";
 		next;
 	}
-	# calculate average read coverage per allele for this locus
-#	$mean_cov = $sum_cov/$allele_count;
+	# calculate average read coverage per locus for this locus
+	$mean_cov = $sum_cov/$geno_calls;
 	# print out
 	print join("	", @line[0..$first_sample_col-1], 
 			$geno_calls, 
@@ -128,5 +132,9 @@ while ($line = <IN>) {
 		);
 	print "\n";
 }
+
+print STDERR "Found $no_geno_call catalog loci without genotype calls from any individual!\n";
+print STDERR "Wrote catalog loci without individual genotype calls to \"coverage.err\"\n";
+
 close IN;
 close ERR;
