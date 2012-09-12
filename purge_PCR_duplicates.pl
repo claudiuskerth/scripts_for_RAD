@@ -23,7 +23,7 @@ of the fastq records have not been manipulated. The script is parallelized to sp
 run this script on demultiplexed sequence files and not on the whole data of a HiSeq lane, for instance, unless you have a lot
 of memory in your computer. The output files contain the keyword \"purged\" in their names.
 
-usage: ./purge_PCR_duplicates.pl [options] 
+usage: ./purge_PCR_duplicates.pl [options] > logfile
 
 options:
 	-v version
@@ -561,7 +561,7 @@ sub print_purged_fastq {
 	}
 	print "The purged files for $sample_name contain each $count records.\n";
 	printf "%s%.0f%s", "Removed ", (1-$count/$overlap)*100, 
-			"% of all overlapping records, which were either PCR duplicates or contained sequencing errors.\n";
+			"% of all overlapping records, which were PCR duplicates.\n";
 
 	return;
 	
