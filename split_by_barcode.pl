@@ -26,7 +26,7 @@ use warnings;
 
 use FileHandle;
 
-my $usage = "usage: $0 [-s] -bc <barcode_ind_file> -i <big_fastq_file > /dev/null
+my $usage = "usage: $0 [-s] -bc barcode_ind_file -i big_fastq_file > /dev/null
 
 Takes a file of barcode<tab>individual_name and a fastq file
 and assorts fastq records into separate fastq files according

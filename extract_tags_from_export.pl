@@ -73,7 +73,7 @@ print join("	", @line);
 
 my %tags;
 # store the data in a hash with catalog locus ids as keys
-while($line = <IN2>) {
+while( ($line = <IN2>) !~ /^$/) {
 	@line = split(/\t/, $line, $col_num);
 	$tags{$line[0]} = join("	", @line[1..$#line]);
 }

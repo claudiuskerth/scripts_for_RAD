@@ -6,8 +6,10 @@ my $usage = "\n$0 [options] <barcode_ind file> <file names to rename>
 This script is designed to rename output files from stacks' \'process_radtags\'script, 
 which contain the barcode sequence in their file names. This script replaces the
 barcode sequence in the filenames with a name of your liking.
+
 <file names to rename> can include a wildcard expression which needs to be in double quotes,
 for instance \"*.fq_1\".
+
 <barcode_ind file> should be a tab delimited file in the format of:
 			<barcode>	<individual name>
 Example:
@@ -22,18 +24,28 @@ the beginning of the reads for the illumina sequencer.
 -n no action, just print what would be done 
 \n";
 
+# stop and write usage statement if there a less than 2 command line arguments given
 die $usage unless @ARGV >= 2;
 
+die "Have you put your wildcard expression in double quotes?\n" if @ARGV > 3;
+
+# the last command line argument should specify the files to be renamed, like "*.fq" without quotation marks
+# @files collects those filenames 
 my @files = glob( pop(@ARGV) ) or die $!;
 
 #foreach my $file (@files) { print $file, "\n"; }
+#exit;
 
-open(IN, "<", pop(@ARGV) ) or die $!;
-
+# initialize global variables
 my ($barcode, $ind, %barcode_ind, $no_action);
 
+# the -n switch has to be given right as the first command line argument
 if ( defined($ARGV[0]) && $ARGV[0] =~ /-n/) { $no_action = "true"; }
 
+# the second last command line argument should specify the barcode_ind file
+open(IN, "<", pop(@ARGV) ) or die $!;
+
+# read in barcode_in file and store all barcodes and the indviduals they are assigned to in hash
 while(<IN>){
 	chomp;
 	($barcode, $ind) = split /\t/, $_;
