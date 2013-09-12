@@ -24,6 +24,17 @@
 use strict;
 use warnings;
 
+#use String::Approx 'amatch';
+
+# Non-core modules
+eval {
+    require String::Approx;
+	use String::Approx 'amatch';
+     };
+die "remove_adapter_reads.pl requires the Perl module String::Approx. Please install this package and add it to your Perl library path.\n" if $@;
+ 
+#  }
+
 my $usage = "
 ./remove_adapter_reads.pl [options] <inputfile>
 
@@ -38,6 +49,7 @@ Command line option:
  	   1: AGATCGGAAG (default)
 	   2: CGTATGCCGTCTTCTGCTTG
 	-adapter : provide custom search sequence (i. e. adapter seq)
+	-sliding_window : turn on sliding window algorithm
 \n";
 
 my $fuzzy = 0;
@@ -53,6 +65,8 @@ my $adapter_seq1 = "AGATCGGAAG"; # first 10bp of illumina adapters
 my $adapter_seq2 = "CGTATGCCGTCTTCTGCTTG"; 
 
 my $adapter_choice = 1;
+
+my $sliding_window = "FALSE";
 
 parse_command_line(); 
 
@@ -76,16 +90,28 @@ if($fuzzy){
 	my $window = "";
 	my $sl = 0;
 	my $mismatch = 0;
+	my $matched = "false";
 RECORD: while(<>){
+		$matched = "false";
 		$head = $_;
 		$seq = <>;
 		$qh = <>;
 		$qual = <>;
 		$sl = length($seq);
-		for(my $i=0; $i<$sl-$al; $i++){
-			$window = substr($seq, $i, $al);	
-			$mismatch = ($window ^ $adapter_seq) =~ tr/\001-\255//;
-			if ($mismatch <= $fuzziness){
+		if($sliding_window){
+			for(my $i=0; $i<$sl-$al; $i++){
+				$window = substr($seq, $i, $al);	
+				$mismatch = ($window ^ $adapter_seq) =~ tr/\001-\255//;
+				if ($mismatch <= $fuzziness){
+					print "Found one!\n";
+					next RECORD; 
+				}
+			}
+		}
+		else{
+			#$matched = amatch( "AGATCGGAAG", [ "I0", "D0", "S2" ], $seq );
+			$matched = amatch( $adapter_seq, [ "I0", "D0", "S$fuzziness" ], $seq );
+			if($matched){
 				print "Found one!\n";
 				next RECORD; 
 			}
@@ -111,6 +137,7 @@ sub parse_command_line{
 		if($fuzziness =~ /[^0-9]/){ die "Please specify fuzzyness.\n" }
 		if(/^-adapter$/){ $adapter_seq = shift @ARGV; }
 		if(/^-ac$/){ $adapter_choice = shift @ARGV; }
+		if(/^-sliding_window$/){ $sliding_window = "true" }
 		if(/^-h$/){ die $usage; }
 	}
 }
