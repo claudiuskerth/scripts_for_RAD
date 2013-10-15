@@ -1,57 +1,67 @@
-#!/usr/bin/env perl
-# translation.pl
-use strict; use warnings;
-use Bio::SeqIO;
-use MyModule;
+#!/usr/bin/env perl 
+#===============================================================================
+#
+#         FILE: translation.pl
+#
+#        USAGE: ./translation.pl  
+#
+#  DESCRIPTION: This script takes a (multi-) fasta file of DNA sequences as 
+#  				input and prints info about the longest open reading frame in each.
+#  
+#
+#      OPTIONS: ---
+# REQUIREMENTS: ---
+#         BUGS: ---
+#        NOTES: ---
+#       AUTHOR: Claudius Kerth (CEK), claudiuskerth[at]gmail.com
+# ORGANIZATION: Sheffield University
+#      VERSION: 1.0
+#      CREATED: 15/10/2013 17:24:54
+#     REVISION: ---
+#===============================================================================
 
-# 1. open input file given as exclusive command line argument
-# 2. check fasta format
-# 3. check IUPAC symbols
-# 4. read in one fasta record at a time
-# 5. send fasta sequence to MyModule::translation
-# 6. modify MyModule::translation to search for longest ORF in all 6 reading frames
-# 7. make this script report the length of the longest ORF, the number of the reading frame and the sequence header line
+use strict;
+use warnings;
 
-my $usage = "\n$0 <fasta file to translate>\n\n";
+# check whether required module is installed
+eval { require Bio::SeqIO };
+if ($@) { 
+	die "$0 requires the Bioperl module Bio::SeqIO. 
+Please install this package and add to your Perl library path.\n";
+}else{ Bio::SeqIO->import() };
+
+# usage statement
+my $usage = "
+This script takes a (multi-) fasta file of DNA sequences as 
+input and prints info about the longest open reading frame in each.
+\n$0 <fasta file to translate>\n\n";
+
 die $usage unless @ARGV;
 
 my $infile = $ARGV[0];
-my $seq_obj;
 
+# create object for file reading
 my $seqIO = Bio::SeqIO->new(-file => $infile,
 							-format => "fasta"
 							);
 							
-
-my $rf_1;
-my $rf_2;
-my $rf_3;
-my $rf_4;
-my $rf_5;
-my $rf_6;
-my @rf_1;
-my @rf_2;
-my @rf_3;
-my @rf_4;
-my @rf_5;
-my @rf_6;
-my %hash;
+# initialise variables
+my ($rf_1,  $rf_2,  $rf_3,  $rf_4,  $rf_5,  $rf_6,  @rf_1,  @rf_2,  @rf_3,  @rf_4,  @rf_5,  @rf_6,  %hash);
 my $longest_ORF;
 
-while($seq_obj = $seqIO->next_seq){
+# foreach fasta sequence:
+while(my $seq_obj = $seqIO->next_seq){
 	print $seq_obj->display_id, "\n";
 	print $seq_obj->desc, "\n";
-	#print $seq_obj->translate->seq, "\n";
-	#print $seq_obj->trunc(2, $seq_obj->length)->translate->seq, "\n";
-	#print $seq_obj->trunc(3, $seq_obj->length)->translate->seq, "\n";
-	#print $seq_obj->revcom->translate->seq, "\n";
-	#print $seq_obj->revcom->trunc(2, $seq_obj->length)->translate->seq, "\n";
-	#print $seq_obj->revcom->trunc(3, $seq_obj->length)->translate->seq, "\n";
-	$rf_1 = $seq_obj->translate(-frame => 0)->seq;
-	@rf_1 = split('\*', $rf_1);
-	$hash{ longest_element(@rf_1) } = "reading frame 1";
+	# get translation in reading frame 1
+	$rf_1 = $seq_obj->translate(-frame => 0)->seq; 
+	# split the translation at stop codons
+	@rf_1 = split('\*', $rf_1); 
+	# store the longest putative ORF of this frame in a hash
+	$hash{ longest_element(@rf_1) } = "reading frame 1"; 
 	#foreach(@rf_1){ print length($_), "\n";}
-	$rf_2 = $seq_obj->translate(-frame => 1)->seq;
+	# get translation in reading frame 2
+	$rf_2 = $seq_obj->translate(-frame => 1)->seq; 
 	@rf_2 = split('\*', $rf_2);
 	$hash{ longest_element(@rf_2) } = "reading frame 2";
 	$rf_3 = $seq_obj->translate(-frame => 2)->seq;
@@ -67,18 +77,22 @@ while($seq_obj = $seqIO->next_seq){
 	@rf_6 = split('\*', $rf_6);
 	$hash{ longest_element(@rf_6) } = "reading frame 6";
 
-	$longest_ORF = longest_element( keys(%hash) );
-	print $hash{ $longest_ORF }, "\n";
-	print $longest_ORF, "\t", $seq_obj->display_id, "\t", $seq_obj->desc, "\n";
+	# get the longest ORF of all reading frames as protein sequence
+	$longest_ORF = longest_element( keys(%hash) ); 
+	# print the reading frame which produced the longest ORF
+	print $hash{ $longest_ORF }, "\n"; 
+	# print out protein sequence of longest ORF along 
+	# with accession and description form the fasta header
+	print $longest_ORF, "\t", $seq_obj->display_id, "\t", $seq_obj->desc, "\n"; 	
 	print length( $longest_ORF ) ;
 	print "\n\n";
 }
 #####################################
 # SUBROUTINE
 # name: longest_element
-# receives: array of outative ORF's
+# receives: array of wutative ORF's
 # returns: longest ORF in array
-# http://stackoverflow.com/questions/4182010/the-fastest-way-execution-time-to-find-the-longest-element-in-an-list
+# from http://stackoverflow.com/questions/4182010/the-fastest-way-execution-time-to-find-the-longest-element-in-an-list
 #####################################
 sub longest_element{
 	my $max = -1;
@@ -92,30 +106,3 @@ sub longest_element{
 	return $$max_ref;
 }
 #####################################
-
-#
-#my %fasta_record;
-#
-#while(<>){
-#	chomp;
-#	if(/^>/){ $header = $_; }
-#	else{ $seq .= $_; }
-#
-#}
-#
-##open(my $in, "<", $seq) || die("can't open datafile: $!");
-#
-#
-#my $IUPAC = "acgtwsmkrybdhvn";
-#die "non-IUPAC symbols used" if ($seq =~ m/[^$IUPAC]/i);
-#
-##die "non-DNA character detected. Only use A, G, C or T, please\n" if ($seq =~ /[^AGCT]/i);
-#
-##if ($seq =~ /agc/i) {$seq .= "this is a test";}
-##print "$seq\n";
-# 
-#my @protein = MyModule::translation($seq);
-#for (my $i = 0; $i < @protein; $i++) {
-#	print $i+1, ". reading frame: ", "$protein[$i]\n";
-#}
-#
