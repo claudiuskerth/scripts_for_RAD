@@ -1,4 +1,4 @@
-# this files specifies which types of files git should completely ignore
+# this file specifies which types of files git should completely ignore
 # when staging or committing
 
 *~  # swap files created by vim shall be ignored 
