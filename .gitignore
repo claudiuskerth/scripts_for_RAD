@@ -2,3 +2,5 @@
 # when staging or committing
 
 *~  # swap files created by vim shall be ignored 
+*swp
+.*

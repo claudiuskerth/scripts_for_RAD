@@ -137,7 +137,7 @@ if ($ARGV[1]) {
 		foreach my $recogn_seq (keys %_6bp_cutters) {
 			# if the sequence contains the recognition sequence
 			if ($seq =~ /$recogn_seq/) {
-				print $_6bp_cutters{$recogn_seq}, "\tcan cut in one of the P1 adapters.\n"; 
+				print $_6bp_cutters{$recogn_seq}, "\tcan cut in the P1 adapter with barcode $barcode.\n"; 
 				# delete that enzyme from the hash
 				delete $_6bp_cutters{$recogn_seq};
 			}
