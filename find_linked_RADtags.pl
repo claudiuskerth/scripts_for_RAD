@@ -28,19 +28,22 @@ use warnings;
 my @which = `which samtools`;
 die "samtools needs to be installed and in your PATH\n" unless @which;
 
-my ($IN, $flag, %map_pos, @fields, $contig_ID, $cigar, $map_pos, @linked_RADtag_contigs);
+
+my $IN;
 
 for my $input (@ARGV){ # for each input file given
 	if($input =~ /bam$/){
 		# the "-F128" to samtools lets it output only single end reads
-		# the awk command filters for read pairs mapped to the same contig
-		open( $IN, "samtools view -F128 $input | awk \'\$7 ~ \"=\"\' | " ) or die $!;
+		# the awk command takes only read pairs with the "proper pair" flag set
+		open( $IN, "samtools view -F128 $input | awk \'and(\$2, 2)\' | " ) or die $!;
 	}elsif($input =~ /\.sam\./){
 		#open( $IN, "samtools view -S $input | head -n 10000 | " ) or die $!; 
-		open( $IN, "samtools view -SF128 $input | awk \'\$7 ~ \"=\"\' |" ) or die $!; 
+		open( $IN, "samtools view -SF128 $input | awk \'and(\$2, 2)\' | " ) or die $!; 
 	}else{
 		die "Your input file needs to end either with bam or sam or sam.gz.\n"
 	}
+
+	my ($flag, %map_pos, @fields, $contig_ID, $cigar, $map_pos, @linked_RADtag_contigs);
 
 	# get the first SAM record
 	my $new_SAM_record = <$IN>;
