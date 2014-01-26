@@ -172,7 +172,7 @@ sub sort_and_match {
 		$header !~ /^@.+$/ 
 		or $seq =~ /^[^AGCTN]$/
 		or $qual_head !~ /^\+/
-		or $qual =~ /^[^!-h]$/
+		or $qual =~ /^[^!-h]$/ # Phred+33 format
 		);
 	last if (!$header) || (!$seq) || (!$qual_head) || (!$qual);
 	push @{ $fastq_record{single}{$header} }, ($seq, $qual_head, $qual);
