@@ -5,7 +5,10 @@
 #
 #        USAGE: ./find_linked_RADtags.pl  
 #
-#  DESCRIPTION: 
+#  DESCRIPTION: This script is designed to search a sorted bam file created from 
+#  				standard RAD paired-end read data for contigs that have read pairs 
+#  				mapped to both sides of a single SbfI restriction site (or any other
+#  				restriction enzyme cut site creating a 4 bp overhang).
 #
 #      OPTIONS: ---
 # REQUIREMENTS: ---
@@ -21,17 +24,38 @@
 use strict;
 use warnings;
 
-# this programme assumes a sorted sam or bam file
+# TODO: for long contigs, also store the mapping position on the contig and report it
 
-# TODO: add switch to input length of single-end reads
 
 my @which = `which samtools`;
 die "samtools needs to be installed and in your PATH\n" unless @which;
 
+my $usage = "
+This script is designed to search a sorted bam file created from 
+standard RAD paired-end read data for contigs that have read pairs 
+mapped to both sides of a single SbfI restriction site (or any other
+restriction enzyme cut site creating a 4 bp overhang).
+Be aware that this script expects input files that were sorted with the
+\'samtools sort\' command.
 
-my $IN;
+-SE_read_length --> Give the length of the single end reads. All input files
+                    need to have the same SE read length.
+-in             --> Specify the names of the input files separated by a space.
+                    The input files should be in the same directory or give the
+                    whole path for each. The \"-in\" flag has to come last on
+                    the command line.
+\n";
 
-for my $input (@ARGV){ # for each input file given
+die $usage unless @ARGV;
+
+my $read_length = 46;
+my @inputFiles;
+
+parse_command_line();
+
+my ($IN, $flag, %map_pos, @fields, $contig_ID, $cigar, $map_pos);
+
+for my $input (@inputFiles){ # for each input file given
 	if($input =~ /bam$/){
 		# the "-F128" to samtools lets it output only single end reads
 		# the awk command takes only read pairs with the "proper pair" flag set
@@ -43,7 +67,8 @@ for my $input (@ARGV){ # for each input file given
 		die "Your input file needs to end either with bam or sam or sam.gz.\n"
 	}
 
-	my ($flag, %map_pos, @fields, $contig_ID, $cigar, $map_pos, @linked_RADtag_contigs);
+	# initialize array that stores contigs with linked RAD tags
+	my @linked_RADtag_contigs;
 
 	# get the first SAM record
 	my $new_SAM_record = <$IN>;
@@ -83,20 +108,7 @@ for my $input (@ARGV){ # for each input file given
 			$map_pos = $fields[3];
 			# if the SAM record belongs to the next contig
 			if($fields[2] ne $contig_ID){
-				# The single end reads should be 46 base pairs long. If two SE reads come form the 
-				# same SbfI restriction site and one read maps on the reverse strand, then the mapping
-				# position of the read mapping on the forward strand should be equal to the mapping
-				# position of the reverse mapping read + 45 - 3. If that condition is met, store the contig name. 
-				# Otherwise, nothing is stored and the next contig is examined.
-				MAPPOS: 
-				foreach my $pos1 (@{ $map_pos{F} }){
-					foreach my $pos2 (@{ $map_pos{R} }){
-						if(($pos2 + 45 - 3) == $pos1){ 
-							push @linked_RADtag_contigs, $contig_ID;
-							last MAPPOS;
-						}
-					}
-				}
+				comp_map_pos(\%map_pos, \@linked_RADtag_contigs);
 				next CONTIG;
 			}else{
 				if($cigar =~ /^(\d+)I/){
@@ -109,16 +121,7 @@ for my $input (@ARGV){ # for each input file given
 		}# -- END of File
 		# the end of the input file has been reached, thus also the end
 		# of records for the last contig. So one last time, check for linked
-		# RADtags
-		MAPPOS: 
-		foreach my $pos1 (@{ $map_pos{F} }){
-			foreach my $pos2 (@{ $map_pos{R} }){
-				if(abs($pos1 - $pos2) == 41){ 
-					push @linked_RADtag_contigs, $contig_ID;
-					last MAPPOS;
-				}
-			}
-		}
+		comp_map_pos(\%map_pos, \@linked_RADtag_contigs);
 	}# -- END of CONTIG
 
 
@@ -130,16 +133,31 @@ for my $input (@ARGV){ # for each input file given
 }
 
 
-# 
-# 
-# sub new_SAM_record{
-# 
-# 	my ($fh) = @_;
-# 	my $line = <$fh>;
-# 	if(!$line){ return; }
-# 	else{ 
-# 		my @fields = split('\s+', $line);
-# 		return \@fields;
-# 	}
-# 
-# }
+sub parse_command_line{
+	while(@ARGV){
+		$_ = shift @ARGV;
+		if(/^-SE_read_length$/){ $read_length = shift @ARGV; }
+		elsif(/^-in$/){ @inputFiles = @ARGV; last; }
+		elsif(/^-h$/){die $usage;}
+		else{die $usage;}
+	}
+}
+
+sub comp_map_pos{
+	my $map_pos_ref = shift;
+	my $linked_RADtag_contigs_ref = shift;
+	# The single end reads could be 46 base pairs long. If two SE reads come form the 
+	# same SbfI restriction site and one read maps on the reverse strand, then the mapping
+	# position of the read mapping on the forward strand should be equal to the mapping
+	# position of the reverse mapping read + 45 - 3. If that condition is met, store the contig name. 
+	# Otherwise, nothing is stored and the next contig is examined.
+	MAPPOS: 
+	foreach my $pos1 (@{ $map_pos_ref->{F} }){
+		foreach my $pos2 (@{ $map_pos_ref->{R} }){
+			if(($pos2 + $read_length-1 - 3) == $pos1){ 
+				push @{$linked_RADtag_contigs_ref}, $contig_ID;
+				last MAPPOS;
+			}
+		}
+	}	
+}
