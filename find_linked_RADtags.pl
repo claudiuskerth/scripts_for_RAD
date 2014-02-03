@@ -53,7 +53,7 @@ my @inputFiles;
 
 parse_command_line();
 
-my ($IN, $flag, %map_pos, @fields, $contig_ID, $cigar, $map_pos);
+my ($IN, $flag, %map_pos, @fields, $contig_ID, $cigar, $map_pos, $stub, $header);
 
 for my $input (@inputFiles){ # for each input file given
 	if($input =~ /bam$/){
@@ -62,13 +62,18 @@ for my $input (@inputFiles){ # for each input file given
 		open( $IN, "samtools view -F128 $input | awk \'and(\$2, 2)\' | " ) or die $!;
 	}elsif($input =~ /\.sam\./){
 		#open( $IN, "samtools view -S $input | head -n 10000 | " ) or die $!; 
-		open( $IN, "samtools view -SF128 $input | awk \'and(\$2, 2)\' | " ) or die $!; 
+		#open( $IN, "samtools view -SF128 $input | awk \'and(\$2, 2)\' | " ) or die $!; 
+		die "Your input file needs to end either with bam or sam or sam.gz.\n";
 	}else{
-		die "Your input file needs to end either with bam or sam or sam.gz.\n"
+		die "Your input file needs to end either with bam or sam or sam.gz.\n";
 	}
 
-	# initialize array that stores contigs with linked RAD tags
-	my @linked_RADtag_contigs;
+	###########################################
+	# find contigs with linked RAD tags
+	###########################################
+
+	# initialize hash that stores contigs with linked RAD tags
+	my %linked_RADtag_contigs;
 
 	# get the first SAM record
 	my $new_SAM_record = <$IN>;
@@ -108,7 +113,7 @@ for my $input (@inputFiles){ # for each input file given
 			$map_pos = $fields[3];
 			# if the SAM record belongs to the next contig
 			if($fields[2] ne $contig_ID){
-				comp_map_pos(\%map_pos, \@linked_RADtag_contigs);
+				comp_map_pos(\%map_pos, \%linked_RADtag_contigs);
 				next CONTIG;
 			}else{
 				if($cigar =~ /^(\d+)I/){
@@ -121,17 +126,125 @@ for my $input (@inputFiles){ # for each input file given
 		}# -- END of File
 		# the end of the input file has been reached, thus also the end
 		# of records for the last contig. So one last time, check for linked
-		comp_map_pos(\%map_pos, \@linked_RADtag_contigs);
+		comp_map_pos(\%map_pos, \%linked_RADtag_contigs);
 	}# -- END of CONTIG
 
-
-	foreach my $contig (@linked_RADtag_contigs){
-		print $contig, "\n";
-	}
-
+	# close the current input file
 	close $IN;
-}
 
+	# print the detected contigs to a report file
+	($stub = $input) =~ s/\.bam//; 
+
+	open( my $OUT, ">", $stub . "_linked_RADtag_contigs.out" ) or die $!;
+
+	print $OUT "Contig", "\t", "Position", "\n";
+	foreach my $contig (keys %linked_RADtag_contigs){
+		print $OUT $contig, "\t", $linked_RADtag_contigs{$contig}, "\n";
+	}
+	close $OUT;
+
+	# index the input file for retrieval of reads with samtools
+	#system("samtools index $input")==0 or die $!;
+
+	###########################################
+	# get paired-end reads from linked RAD tags
+	###########################################
+
+	# foreach contig that contains linked RAD tags
+	foreach my $contig ( keys %linked_RADtag_contigs){
+		# get all reads that map to this contig. Note, that unmapped reads
+		# get the same mapping position as their mapped mates.
+		open( $IN, "samtools view $input | awk \'/$contig/\' | ") or die $!;
+
+		# initialise variables
+		my ($read_ID, $seq, $qual, %PE, %SE);
+
+		# while reading in all bam records for this contig
+		while(<$IN>){
+			@fields = split('\t', $_);
+			$read_ID = $fields[0];
+			$flag = $fields[1];
+			$contig_ID = $fields[2];
+			$map_pos = $fields[3];
+			$cigar = $fields[5];
+			$seq = $fields[9];
+			$qual = $fields[10];
+				if($cigar =~ /^(\d+)I/){
+				$map_pos -= $1;
+			}
+			# if read is second in pair
+			if($flag & 128){ $PE{$read_ID} = [$seq, $qual] }
+			else{ 
+				# If only the mate of this single-end read mapped to the current contig,
+				# skip recording this read. It cannot come from a RAD site that was detected
+				# with the above method.
+				next if ($contig_ID !~ $contig);
+				# if read is mapped on reverse strand
+				if($flag & 16){ 
+					$map_pos += ($read_length-1 - 3);
+					# if the read maps to the linked RADtags site detected for this contig
+					if($map_pos == $linked_RADtag_contigs{$contig}){
+					# Note, if there is more than one RAD site in the contig, only the 
+					# most upstream (i. e. low map position) will be considered so far.
+						$SE{reverse}->{$read_ID} = [$seq, $qual];
+					}
+				}else{
+					if($map_pos == $linked_RADtag_contigs{$contig}){
+						$SE{forward}->{$read_ID} = [$seq, $qual];
+					}
+				}
+			}
+		}# END of reading in bam records for the contig
+
+		close $IN;
+
+
+		# print out all SE and PE reads that map to a 
+		# RAD tag site
+
+		my $out_name = $stub . "_$contig" . "_downstream" . ".fq";
+
+		# first all reads downstream of RAD site in one file
+		open( my $FOR, ">", $out_name) or die $!;
+
+		foreach my $read_ID (keys %{ $SE{forward} }){
+			($header = $read_ID) =~ s[1\/1$][2]; 
+			print $FOR "@", $header, "\n",
+						@{ $PE{$read_ID} }[0], "\n",
+						"+", "\n",
+						@{ $PE{$read_ID} }[1], "\n";
+			$header =~ s/2$/1/;
+			print $FOR "@", $header, "\n",
+		   				@{ $SE{forward}->{$read_ID} }[0], "\n",
+						"+", "\n",
+		   				@{ $SE{forward}->{$read_ID} }[1], "\n";
+		}
+
+		close $FOR;
+
+		$out_name = $stub . "_$contig" . "_upstream" . ".fq";
+
+		# now all reads upstream of RAD site
+		open( my $REV, ">", $out_name) or die $!;
+
+		foreach my $read_ID (keys %{ $SE{reverse} }){
+			($header = $read_ID) =~ s[1\/1$][2]; 
+			print $REV "@", $header, "\n",
+						@{ $PE{$read_ID} }[0], "\n",
+						"+", "\n",
+						@{ $PE{$read_ID} }[1], "\n";
+			$header =~ s/2$/1/;
+			print $REV "@", $header, "\n",
+		   				@{ $SE{reverse}->{$read_ID} }[0], "\n",
+						"+", "\n",
+		   				@{ $SE{reverse}->{$read_ID} }[1], "\n";
+		}
+	}# END foreach contig
+}# END foreach input file
+
+#########################
+## SUBROUTINES
+#########################
 
 sub parse_command_line{
 	while(@ARGV){
@@ -155,7 +268,8 @@ sub comp_map_pos{
 	foreach my $pos1 (@{ $map_pos_ref->{F} }){
 		foreach my $pos2 (@{ $map_pos_ref->{R} }){
 			if(($pos2 + $read_length-1 - 3) == $pos1){ 
-				push @{$linked_RADtag_contigs_ref}, $contig_ID;
+#				push @{$linked_RADtag_contigs_ref}, $contig_ID;
+				$linked_RADtag_contigs_ref->{$contig_ID} = $pos1;
 				last MAPPOS;
 			}
 		}
