@@ -55,6 +55,7 @@ The programme filters out loci:
   from an individual can match the same catalog stack. Then the genotype reported for this individual shows alleles from
   both stacks. This is generally an indication of similar duplicated loci having been merged into one catalog stack.
 - which have no genotype call in either population
+- which have disploid genotype calls, i. e. more than two alleles
 - for which the within population and total sample inbreeding coefficient is < -0.1. Negative F_is values indicate an excess of observed
   heterozygotes over HW expectations, which can be caused by clustering similar loci together.
 
@@ -123,7 +124,6 @@ my $no_PopLeft_geno = 0;  # counts the number of loci for which there is no geno
 my $message = "";
 my $dodgy_tag_count = 0;
 my $consensus_het = 0; # counts loci which contain "consensus/consensus" genotype calls, which is dodgy
- # :TODO      :09/05/12 15:07:08:CEK: insert subroutine, that checks that the number of genotype calls equals the number of parental matches
 
 
 while (<IN>) {
