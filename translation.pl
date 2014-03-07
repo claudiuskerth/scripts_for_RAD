@@ -27,7 +27,7 @@ use warnings;
 eval { require Bio::SeqIO };
 if ($@) { 
 	die "$0 requires the Bioperl module Bio::SeqIO. 
-Please install this package and add to your Perl library path.\n";
+Please install this package and add it to your Perl library path.\n";
 }else{ Bio::SeqIO->import() };
 
 # usage statement

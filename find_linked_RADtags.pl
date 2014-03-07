@@ -6,7 +6,7 @@
 #        USAGE: ./find_linked_RADtags.pl  
 #
 #  DESCRIPTION: This script is designed to search a sorted bam file created from 
-#  				standard RAD paired-end read data for contigs that have read pairs 
+#  				standard RAD paired-end read data for reference contigs that have read pairs 
 #  				mapped to both sides of a single SbfI restriction site (or any other
 #  				restriction enzyme cut site creating a 4 bp overhang).
 #
@@ -31,15 +31,15 @@ my @which = `which samtools`;
 die "samtools needs to be installed and in your PATH\n" unless @which;
 
 my $usage = "
-This script is designed to search a sorted bam file created from 
-standard RAD paired-end read data for contigs that have read pairs 
+This script is designed to search a sorted bam file created by mapping 
+standard RAD paired-end read data for reference contigs that have read pairs 
 mapped to both sides of a single SbfI restriction site (or any other
 restriction enzyme cut site creating a 4 bp overhang).
-Be aware that this script expects input files that were sorted with the
+Be aware that this script expects input files that were position sorted with the
 \'samtools sort\' command.
 
 -SE_read_length --> Give the length of the single end reads. All input files
-                    need to have the same SE read length.
+                    need to have the same SE read length. (default: 46)
 -in             --> Specify the names of the input files separated by a space.
                     The input files should be in the same directory or give the
                     whole path for each. The \"-in\" flag has to come last on
@@ -59,13 +59,14 @@ for my $input (@inputFiles){ # for each input file given
 	if($input =~ /bam$/){
 		# the "-F128" to samtools lets it output only single end reads
 		# the awk command takes only read pairs with the "proper pair" flag set
+		# i. e. only properly mapped read pairs are used for contig detection.
 		open( $IN, "samtools view -F128 $input | awk \'and(\$2, 2)\' | " ) or die $!;
-	}elsif($input =~ /\.sam\./){
-		#open( $IN, "samtools view -S $input | head -n 10000 | " ) or die $!; 
-		#open( $IN, "samtools view -SF128 $input | awk \'and(\$2, 2)\' | " ) or die $!; 
-		die "Your input file needs to end either with bam or sam or sam.gz.\n";
+#	}elsif($input =~ /\.sam\./){
+#		#open( $IN, "samtools view -S $input | head -n 10000 | " ) or die $!; 
+#		#open( $IN, "samtools view -SF128 $input | awk \'and(\$2, 2)\' | " ) or die $!; 
+#		die "Your input file needs to end either with bam or sam or sam.gz.\n";
 	}else{
-		die "Your input file needs to end either with bam or sam or sam.gz.\n";
+		die "Your input file needs to end either with bam and be a position sorted BAM file.\n";
 	}
 
 	###########################################
@@ -151,13 +152,15 @@ for my $input (@inputFiles){ # for each input file given
 	###########################################
 
 	# foreach contig that contains linked RAD tags
-	foreach my $contig ( keys %linked_RADtag_contigs){
+	foreach my $contig (keys %linked_RADtag_contigs){
 		# get all reads that map to this contig. Note, that unmapped reads
 		# get the same mapping position as their mapped mates.
+		# The awk command insures that this also gets reads that mapped to other
+		# contigs, but whose mate mapped to this contig.
 		open( $IN, "samtools view $input | awk \'/$contig/\' | ") or die $!;
 
 		# initialise variables
-		my ($read_ID, $seq, $qual, %PE, %SE);
+		my ($read_ID, $seq, $qual, %PE_init, %PE, %SE);
 
 		# while reading in all bam records for this contig
 		while(<$IN>){
@@ -172,8 +175,13 @@ for my $input (@inputFiles){ # for each input file given
 				if($cigar =~ /^(\d+)I/){
 				$map_pos -= $1;
 			}
-			# if read is second in pair
-			if($flag & 128){ $PE{$read_ID} = [$seq, $qual] }
+
+			# Note, that in SAM files created by stampy, paired reads have exactly the same 
+			# read ID in the first column (any 2 at the end of the ID that was there before
+			# is replaced by a 1)
+
+			# if read is second in pair 
+			if($flag & 128){ $PE_init{$read_ID} = [$seq, $qual] }
 			else{ 
 				# If only the mate of this single-end read mapped to the current contig,
 				# skip recording this read. It cannot come from a RAD site that was detected
@@ -192,6 +200,14 @@ for my $input (@inputFiles){ # for each input file given
 					if($map_pos == $linked_RADtag_contigs{$contig}){
 						$SE{forward}->{$read_ID} = [$seq, $qual];
 					}
+				}
+			}
+			# only keep PE reads whose mate maps to a RADtag site
+			foreach my $read_ID (keys %PE_init){
+				if(exists $SE{reverse}->{$read_ID}){
+					$PE{$read_ID} = $PE_init{$read_ID};
+				}elsif(exists $SE{forward}->{$read_ID}){
+					$PE{$read_ID} = $PE_init{$read_ID};
 				}
 			}
 		}# END of reading in bam records for the contig
