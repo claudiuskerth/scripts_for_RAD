@@ -189,7 +189,6 @@ while (defined read_next_seq($SE)){
 	print $match_distance_fh "$SE->{'current_id'}\t$SE->{'match_mode'}\t$PE->{'match_mode'}\t$SE->{'SW_align_start'}\t$SE->{'SW_align_end'}\t$SE->{'SW_align_start'}\t$SE->{'SW_align_end'}\t$SE->{'SW_pct_identical'}\t$SE->{'SW_align_length'}\n" if $write_distance_flag eq "y";
 
 	if($test_print_flag > 0){
-
 		testprint($SE);  
 		testprint($PE);  
 		last if $SE->{'count_total_reads'} >= $test_print_flag;
@@ -219,7 +218,9 @@ unless ($log_write_flag eq "n") {
 }
 
 ### print match distance stats
-write_LOG_distance ($SE_PE_result, $SE);
+if($write_distance_flag eq "y"){
+	write_LOG_distance ($SE_PE_result, $SE);
+}
 
 close_files($SE);
 close_files($PE);
@@ -232,54 +233,117 @@ exit;
 
 sub testprint {
 	return unless $test_print_flag;
+#	my $seq_hash_ref = shift;
+#	
+#	print "Total reads              : $seq_hash_ref->{'count_total_reads'}\n";
+#	print "seq id                   : $seq_hash_ref->{'current_id'}\n";
+#	print "-------------------------\n";
+#	print "SW align start           : $seq_hash_ref->{'SW_align_start'}\n";
+#	print "SW align end             : $seq_hash_ref->{'SW_align_end'}\n";
+#	print "SW align pcercent match  : $seq_hash_ref->{'SW_pct_identical'}\n";
+#	print "SW align length          : $seq_hash_ref->{'SW_align_length'}\n";
+#	print "-------------------------\n";
+#	print "Adapter match mode       : $seq_hash_ref->{'match_mode'}\n";   # $seq_hash_ref->{'fuzzy_correction_log'}\n";
+#	print "Adapter trimming start   : $seq_hash_ref->{'Atrim_start'}\n";
+#	print "Quality trimming start   : $seq_hash_ref->{'Qtrim_start'}\n";
+#	print "Final trimming start     : $seq_hash_ref->{'trim_start'}"; print "(Quality trimmed)" if $seq_hash_ref->{'Qtrimmed_flag'}==1; print "\n";
+#	print "--------------------------\n";
+#	print "Total matched            : $seq_hash_ref->{'count_total_matched_tags'}\n";
+#	print "Exact match              : $seq_hash_ref->{'count_exact_match'}\n";
+#	print "SWAlign match            : $seq_hash_ref->{'count_SW_match'}\n";
+#	print "Fuzzy match              : $seq_hash_ref->{'count_fuzzy_match'}\n";
+#	print "Non match                : $seq_hash_ref->{'count_non_match'}\n";
+#	print "--------------------------\n";
+#
+#	print "<Before>\n$seq_hash_ref->{'current_seq'}\n$seq_hash_ref->{'current_qual'}\n";
+#	if ($seq_hash_ref->{'Atrim_start'} > 0){
+#		trim_seq($seq_hash_ref->{'Atrim_start'}-1, $seq_hash_ref);
+#		print "<After adapter matching>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+#	}
+#	else{
+#		$seq_hash_ref->{'new_seq'} = $seq_hash_ref->{'current_seq'};
+#		$seq_hash_ref->{'new_qual'} = $seq_hash_ref->{'current_qual'};
+#		$seq_hash_ref->{'new_length'} = $seq_hash_ref->{'current_length'};
+#		print "<After adapter matching>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+#	}
+#
+#
+#	if (($seq_hash_ref->{'Qtrim_start'} > 0) && $seq_hash_ref->{'Qtrim_start'} < $seq_hash_ref->{'Atrim_start'}){
+#		trim_seq($seq_hash_ref->{'Qtrim_start'}-1, $seq_hash_ref);
+#		print "<After quality trimming>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+#	}
+#	elsif($seq_hash_ref->{'Qtrim_start'} > 0 && $seq_hash_ref->{'Atrim_start'} < 0){
+#		trim_seq($seq_hash_ref->{'Qtrim_start'}-1, $seq_hash_ref);
+#		print "<After quality trimming>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+#	}
+#	else{
+#		print "<After quality trimming>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+#	}
+#
+#	print "------------------------------------------------------------------------------------------\n\n";
+
 	my $seq_hash_ref = shift;
 	
-	print "Total reads              : $seq_hash_ref->{'count_total_reads'}\n";
-	print "seq id                   : $seq_hash_ref->{'current_id'}\n";
-	print "-------------------------\n";
-	print "SW align start           : $seq_hash_ref->{'SW_align_start'}\n";
-	print "SW align end             : $seq_hash_ref->{'SW_align_end'}\n";
-	print "SW align pcercent match  : $seq_hash_ref->{'SW_pct_identical'}\n";
-	print "SW align length          : $seq_hash_ref->{'SW_align_length'}\n";
-	print "-------------------------\n";
-	print "Adapter match mode       : $seq_hash_ref->{'match_mode'}\n";   # $seq_hash_ref->{'fuzzy_correction_log'}\n";
-	print "Adapter trimming start   : $seq_hash_ref->{'Atrim_start'}\n";
-	print "Quality trimming start   : $seq_hash_ref->{'Qtrim_start'}\n";
-	print "Final trimming start     : $seq_hash_ref->{'trim_start'}"; print "(Quality trimmed)" if $seq_hash_ref->{'Qtrimmed_flag'}==1; print "\n";
-	print "--------------------------\n";
-	print "Total matched            : $seq_hash_ref->{'count_total_matched_tags'}\n";
-	print "Exact match              : $seq_hash_ref->{'count_exact_match'}\n";
-	print "SWAlign match            : $seq_hash_ref->{'count_SW_match'}\n";
-	print "Fuzzy match              : $seq_hash_ref->{'count_fuzzy_match'}\n";
-	print "Non match                : $seq_hash_ref->{'count_non_match'}\n";
-	print "--------------------------\n";
+#	print "Total reads              : $seq_hash_ref->{'count_total_reads'}\n";
+#	print "seq id                   : $seq_hash_ref->{'current_id'}\n";
+#	print "-------------------------\n";
+#	print "SW align start           : $seq_hash_ref->{'SW_align_start'}\n";
+#	print "SW align end             : $seq_hash_ref->{'SW_align_end'}\n";
+#	print "SW align pcercent match  : $seq_hash_ref->{'SW_pct_identical'}\n";
+#	print "SW align length          : $seq_hash_ref->{'SW_align_length'}\n";
+#	print "-------------------------\n";
+#	print "Adapter match mode       : $seq_hash_ref->{'match_mode'}\n";   # $seq_hash_ref->{'fuzzy_correction_log'}\n";
+#	print "Adapter trimming start   : $seq_hash_ref->{'Atrim_start'}\n";
+#	print "Quality trimming start   : $seq_hash_ref->{'Qtrim_start'}\n";
+#	print "Final trimming start     : $seq_hash_ref->{'trim_start'}"; print "(Quality trimmed)" if $seq_hash_ref->{'Qtrimmed_flag'}==1; print "\n";
+#	print "--------------------------\n";
+#	print "Total matched            : $seq_hash_ref->{'count_total_matched_tags'}\n";
+#	print "Exact match              : $seq_hash_ref->{'count_exact_match'}\n";
+#	print "SWAlign match            : $seq_hash_ref->{'count_SW_match'}\n";
+#	print "Fuzzy match              : $seq_hash_ref->{'count_fuzzy_match'}\n";
+#	print "Non match                : $seq_hash_ref->{'count_non_match'}\n";
+#	print "--------------------------\n";
 
-	print "<Before>\n$seq_hash_ref->{'current_seq'}\n$seq_hash_ref->{'current_qual'}\n";
 	if ($seq_hash_ref->{'Atrim_start'} > 0){
+		print "seq id                   : $seq_hash_ref->{'current_id'}\n";
+		print "SW align start           : $seq_hash_ref->{'SW_align_start'}\n";
+		print "SW align end             : $seq_hash_ref->{'SW_align_end'}\n";
+		print "SW align pcercent match  : $seq_hash_ref->{'SW_pct_identical'}\n";
+		print "SW align length          : $seq_hash_ref->{'SW_align_length'}\n";
+		print "<Before>\n$seq_hash_ref->{'current_seq'}\n$seq_hash_ref->{'current_qual'}\n";
 		trim_seq($seq_hash_ref->{'Atrim_start'}-1, $seq_hash_ref);
 		print "<After adapter matching>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+		print "------------------------------------------------------------------------------------------\n\n";
+	}
+	elsif (($seq_hash_ref->{'Qtrim_start'} > 0) && $seq_hash_ref->{'Qtrim_start'} < $seq_hash_ref->{'Atrim_start'}){
+		print "seq id                   : $seq_hash_ref->{'current_id'}\n";
+		print "Adapter match mode       : $seq_hash_ref->{'match_mode'}\n";   # $seq_hash_ref->{'fuzzy_correction_log'}\n";
+		print "Adapter trimming start   : $seq_hash_ref->{'Atrim_start'}\n";
+		print "Quality trimming start   : $seq_hash_ref->{'Qtrim_start'}\n";
+		print "Final trimming start     : $seq_hash_ref->{'trim_start'}"; print "(Quality trimmed)" if $seq_hash_ref->{'Qtrimmed_flag'}==1; print "\n";
+		print "<Before>\n$seq_hash_ref->{'current_seq'}\n$seq_hash_ref->{'current_qual'}\n";
+		trim_seq($seq_hash_ref->{'Qtrim_start'}-1, $seq_hash_ref);
+		print "<After quality trimming>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+		print "------------------------------------------------------------------------------------------\n\n";
+	}
+	elsif($seq_hash_ref->{'Qtrim_start'} > 0 && $seq_hash_ref->{'Atrim_start'} < 0){
+		print "seq id                   : $seq_hash_ref->{'current_id'}\n";
+		print "Adapter match mode       : $seq_hash_ref->{'match_mode'}\n";   # $seq_hash_ref->{'fuzzy_correction_log'}\n";
+		print "Adapter trimming start   : $seq_hash_ref->{'Atrim_start'}\n";
+		print "Quality trimming start   : $seq_hash_ref->{'Qtrim_start'}\n";
+		print "Final trimming start     : $seq_hash_ref->{'trim_start'}"; print "(Quality trimmed)" if $seq_hash_ref->{'Qtrimmed_flag'}==1; print "\n";
+		print "<Before>\n$seq_hash_ref->{'current_seq'}\n$seq_hash_ref->{'current_qual'}\n";
+		trim_seq($seq_hash_ref->{'Qtrim_start'}-1, $seq_hash_ref);
+		print "<After quality trimming>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+		print "------------------------------------------------------------------------------------------\n\n";
 	}
 	else{
 		$seq_hash_ref->{'new_seq'} = $seq_hash_ref->{'current_seq'};
 		$seq_hash_ref->{'new_qual'} = $seq_hash_ref->{'current_qual'};
 		$seq_hash_ref->{'new_length'} = $seq_hash_ref->{'current_length'};
-		print "<After adapter matching>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
+#		print "<After adapter matching>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
 	}
 
-
-	if (($seq_hash_ref->{'Qtrim_start'} > 0) && $seq_hash_ref->{'Qtrim_start'} < $seq_hash_ref->{'Atrim_start'}){
-		trim_seq($seq_hash_ref->{'Qtrim_start'}-1, $seq_hash_ref);
-		print "<After quality trimming>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
-	}
-	elsif($seq_hash_ref->{'Qtrim_start'} > 0 && $seq_hash_ref->{'Atrim_start'} < 0){
-		trim_seq($seq_hash_ref->{'Qtrim_start'}-1, $seq_hash_ref);
-		print "<After quality trimming>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
-	}
-	else{
-		print "<After quality trimming>\n$seq_hash_ref->{'new_seq'}\n$seq_hash_ref->{'new_qual'}\n";
-	}
-
-	print "------------------------------------------------------------------------------------------\n\n";
 }
 
 sub initialize_seq_hash{
