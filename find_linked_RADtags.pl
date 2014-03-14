@@ -192,18 +192,18 @@ for my $input (@inputFiles){ # for each input file given
 				# skip recording this read. It cannot come from a RAD site that was detected
 				# with the above method.
 				next if ($contig_ID !~ $contig);
-				# if read is mapped on reverse strand
+				# if read is printed as reverse complement of input sequence in the SAM input
 				if($flag & 16){ 
 					$map_pos += ($read_length-1 - 3);
 					# if the read maps to the linked RADtags site detected for this contig
 					if($map_pos == $linked_RADtag_contigs{$contig}){
 					# Note, if there is more than one RAD site in the contig, only the 
 					# most upstream (i. e. low map position) will be considered so far.
-						$SE{reverse}->{$read_ID} = [$seq, $qual, $flag];
+						$SE{reverse}->{$read_ID} = [$seq, $qual];
 					}
 				}else{
 					if($map_pos == $linked_RADtag_contigs{$contig}){
-						$SE{forward}->{$read_ID} = [$seq, $qual, $flag];
+						$SE{forward}->{$read_ID} = [$seq, $qual];
 					}
 				}
 			}
@@ -211,18 +211,33 @@ for my $input (@inputFiles){ # for each input file given
 
 		close $IN;
 
-		my $revcomp_seq;
+		#####################################################
 		# only keep PE reads whose mate maps to a RADtag site
+		#####################################################
+		my $revcomp_seq;
 		foreach my $read_ID (keys %PE_init){
+			# if there exists a SE read with the same read ID
+			# and it is among the reads that mapped as reverse complement
 			if(exists $SE{reverse}->{$read_ID}){
-				if( $PE_init{$read_ID}->[2] & 16 ){ 
+				# unless the corresponding paired end read was also printed
+				# as reverse complement in the SAM input
+				unless( $PE_init{$read_ID}->[2] & 16 ){ 
+					# reverse complement it now
 					( $revcomp_seq = reverse $PE_init{$read_ID}->[0] ) =~ tr/ACGT/TGCA/;
+					# replace the PE read by its reverse complement
 					$PE_init{$read_ID}->[0] = $revcomp_seq;
 				}
 				$PE{$read_ID} = $PE_init{$read_ID};
+			# if there exists a SE read with the same read ID
+			# and it is among the reads that mapped in its original orientation
 			}elsif(exists $SE{forward}->{$read_ID}){
-				unless( $PE_init{$read_ID}->[2] & 16 ){ 
+				# if the corresponding PE got reverse complemented by the mapping programme
+				# thus put on the same strand as the SE read
+				if( $PE_init{$read_ID}->[2] & 16 ){ 
+					# reverse complement it again, so that the PE read is mapping on the
+					# opposite strand of the SE read again
 					( $revcomp_seq = reverse $PE_init{$read_ID}->[0] ) =~ tr/ACGT/TGCA/;
+					# replace the PE read by its reverse complement
 					$PE_init{$read_ID}->[0] = $revcomp_seq;
 				}
 				$PE{$read_ID} = $PE_init{$read_ID};
