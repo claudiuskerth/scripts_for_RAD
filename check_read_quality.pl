@@ -13,15 +13,15 @@ fall below a given threshold by sliding a window down each line
 and calculating the average quality score at each step.
 It reports when it finds a line in which the average quality score
 in the window fell below the given threshold. 
-It currently expects Phred+33 quality score encoding.
 
 $0
 
 -w sliding window_size, must be an integer
 -t quality threshold for the mean quality in the window
+-enc [33] for +33 encoding, [64] for +64 encoding of qualtiy scores
 \n";
 
-my ( $window, $threshold, $qual );
+my ( $window, $threshold, $qual, $encod );
 
 parse_command_line();
 print STDERR $window, "\t", $threshold, "\n";
@@ -37,7 +37,7 @@ while(<>){
 	$qual = 0;
 	# first window:
 	for (my $i = 0; $i < $window; $i++){
-		$qual += ord( substr($_, $i, 1) ) - 33;
+		$qual += ord( substr($_, $i, 1) ) - $encod;
 	}
 
 	if ( $qual < $threshold*$window ){ 
@@ -66,6 +66,7 @@ sub parse_command_line{
 		$_ = shift @ARGV;
 		if ( $_ =~ /^-w$/ ) { $window = shift @ARGV; }
 		if ( $_ =~ /^-t$/ ) { $threshold = shift @ARGV; }
+		if ( $_ =~ /^-enc$/ ) { $encod = shift @ARGV; }
 	}
 
 }
