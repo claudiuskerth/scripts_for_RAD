@@ -50,6 +50,7 @@ die $usage unless @ARGV;
 
 my $read_length = 46;
 my @inputFiles;
+my $verbose = 0;
 
 parse_command_line();
 
@@ -144,6 +145,8 @@ for my $input (@inputFiles){ # for each input file given
 	}
 	close $OUT;
 
+	if($verbose){ print "Found ", keys %linked_RADtag_contigs, " reference contigs with linked RADtags\n"; }
+
 	# index the input file for retrieval of reads with samtools
 	#system("samtools index $input")==0 or die $!;
 
@@ -158,6 +161,8 @@ for my $input (@inputFiles){ # for each input file given
 		# The awk command insures that this also gets reads that mapped to other
 		# contigs, but whose mate mapped to this contig.
 		open( $IN, "samtools view $input | awk \'/$contig/\' | ") or die $!;
+
+		if($verbose){ print "Reading in bam records for reference contig ", $contig, "\n"; }
 
 		# initialise variables
 		my ($read_ID, $seq, $qual, %PE_init, %PE, %SE);
@@ -181,7 +186,7 @@ for my $input (@inputFiles){ # for each input file given
 			# is replaced by a 1)
 
 			# if read is second in pair 
-			if($flag & 128){ $PE_init{$read_ID} = [$seq, $qual] }
+			if($flag & 128){ $PE_init{$read_ID} = [$seq, $qual, $flag] }
 			else{ 
 				# If only the mate of this single-end read mapped to the current contig,
 				# skip recording this read. It cannot come from a RAD site that was detected
@@ -194,25 +199,35 @@ for my $input (@inputFiles){ # for each input file given
 					if($map_pos == $linked_RADtag_contigs{$contig}){
 					# Note, if there is more than one RAD site in the contig, only the 
 					# most upstream (i. e. low map position) will be considered so far.
-						$SE{reverse}->{$read_ID} = [$seq, $qual];
+						$SE{reverse}->{$read_ID} = [$seq, $qual, $flag];
 					}
 				}else{
 					if($map_pos == $linked_RADtag_contigs{$contig}){
-						$SE{forward}->{$read_ID} = [$seq, $qual];
+						$SE{forward}->{$read_ID} = [$seq, $qual, $flag];
 					}
-				}
-			}
-			# only keep PE reads whose mate maps to a RADtag site
-			foreach my $read_ID (keys %PE_init){
-				if(exists $SE{reverse}->{$read_ID}){
-					$PE{$read_ID} = $PE_init{$read_ID};
-				}elsif(exists $SE{forward}->{$read_ID}){
-					$PE{$read_ID} = $PE_init{$read_ID};
 				}
 			}
 		}# END of reading in bam records for the contig
 
 		close $IN;
+
+		my $revcomp_seq;
+		# only keep PE reads whose mate maps to a RADtag site
+		foreach my $read_ID (keys %PE_init){
+			if(exists $SE{reverse}->{$read_ID}){
+				if( $PE_init{$read_ID}->[2] & 16 ){ 
+					( $revcomp_seq = reverse $PE_init{$read_ID}->[0] ) =~ tr/ACGT/TGCA/;
+					$PE_init{$read_ID}->[0] = $revcomp_seq;
+				}
+				$PE{$read_ID} = $PE_init{$read_ID};
+			}elsif(exists $SE{forward}->{$read_ID}){
+				unless( $PE_init{$read_ID}->[2] & 16 ){ 
+					( $revcomp_seq = reverse $PE_init{$read_ID}->[0] ) =~ tr/ACGT/TGCA/;
+					$PE_init{$read_ID}->[0] = $revcomp_seq;
+				}
+				$PE{$read_ID} = $PE_init{$read_ID};
+			}
+		}
 
 
 		# print out all SE and PE reads that map to a 
@@ -268,6 +283,7 @@ sub parse_command_line{
 		if(/^-SE_read_length$/){ $read_length = shift @ARGV; }
 		elsif(/^-in$/){ @inputFiles = @ARGV; last; }
 		elsif(/^-h$/){die $usage;}
+		elsif(/^-v$/){ $verbose = 1; }
 		else{die $usage;}
 	}
 }

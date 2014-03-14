@@ -81,14 +81,17 @@ my $QCwin_len = 10;
 my $Swindow_fraction = 0.04;
 my $informat = "fastq";
 my $outformat = "fastq";
-my $SW_command = "./smith-waterman-k";
+my $SW_command = "smith-waterman-k";
 
 
 
 # multiplexing adapter 1 AGATCGGAAGAGCACACGTCT
 # multiplexing adapter 2 AGATCGGAAGAGCGTCGTGTA
-my $tag1 = "AGATCGGAAGAGCAC";
-my $tag2 = "AGATCGGAAGAGCGT";
+#my $tag1 = "AGATCGGAAGAGCAC";
+#my $tag2 = "AGATCGGAAGAGCGT";
+my $tag1 = "AGATCGGAAGAGCG"; #Claudius
+my $tag2 = "AGATCGGAAGAGCG"; #Claudius
+
 my $taglength1 = length $tag1;	###
 my $taglength2 = length $tag1;	###
 
@@ -120,8 +123,7 @@ while (@ARGV) {
 
 eval {
 	require String::Approx;
-	use String::Approx qw (amatch aindex);
-};
+	use String::Approx qw (amatch aindex); };
 die "remove_illumina_adapter.pl requires the Perl module String::Approx for fuzzy matching. Please install this package and add it to your Perl library path.
 You can download it from http://search.cpan.org/~jhi/String-Approx/Approx.pm\n" if $@;
 
@@ -141,6 +143,7 @@ initialize_seq_hash ($Infile1, $OUTfile1, $SE);
 initialize_seq_hash ($Infile2, $OUTfile2, $PE);
 initialize_matchstat_hash ($SE_PE_result);
 
+print "\n";
 print "Processed SE file         :\t$Infile1\n";
 print "Processed PE file         :\t$Infile2\n" if $PE_flag;
 print "Adapter sequence 1        :\t$tag1\n";
@@ -466,7 +469,9 @@ sub adapter_search {
 	}
 	elsif (defined SW_matching($seq_hash_ref) && $PE_flag == 1){
 	}
-	elsif(defined fuzzy_matching(\$tag_ref,$seq_hash_ref) && $fuzzymatching_flag == 1){
+#	elsif(defined fuzzy_matching(\$tag_ref,$seq_hash_ref) && $fuzzymatching_flag == 1){
+#	}
+	elsif( $fuzzymatching_flag == 1 && defined fuzzy_matching(\$tag_ref,$seq_hash_ref) ){ #Claudius: left precedence of '&&'
 	}
 	else{
 		no_matching($seq_hash_ref);
