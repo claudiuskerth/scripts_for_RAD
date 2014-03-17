@@ -165,7 +165,7 @@ for my $input (@inputFiles){ # for each input file given
 		if($verbose){ print "Reading in bam records for reference contig ", $contig, "\n"; }
 
 		# initialise variables
-		my ($read_ID, $seq, $qual, %PE_init, %PE, %SE);
+		my ($read_ID, $seq, $qual, %PE_init, %PE, %SE, $revcomp);
 
 		# while reading in all bam records for this contig
 		while(<$IN>){
@@ -186,8 +186,15 @@ for my $input (@inputFiles){ # for each input file given
 			# is replaced by a 1)
 
 			# if read is second in pair 
-			if($flag & 128){ $PE_init{$read_ID} = [$seq, $qual, $flag] }
-			else{ 
+			if($flag & 128){ 						
+				if($flag & 16){
+					($revcomp = reverse $seq) =~ tr/ACGT/TGCA/;
+					$seq = $revcomp;
+					($revcomp = reverse $qual) =~ tr/ACGT/TGCA/;
+					$qual = $revcomp;
+				}
+				$PE_init{$read_ID} = [$seq, $qual];
+			}else{ 
 				# If only the mate of this single-end read mapped to the current contig,
 				# skip recording this read. It cannot come from a RAD site that was detected
 				# with the above method.
@@ -199,11 +206,15 @@ for my $input (@inputFiles){ # for each input file given
 					if($map_pos == $linked_RADtag_contigs{$contig}){
 					# Note, if there is more than one RAD site in the contig, only the 
 					# most upstream (i. e. low map position) will be considered so far.
-						$SE{reverse}->{$read_ID} = [$seq, $qual];
+						($revcomp = reverse $seq) =~ tr/ACGT/TGCA/;
+						$seq = $revcomp;
+						($revcomp = reverse $qual) =~ tr/ACGT/TGCA/;
+						$qual = $revcomp;
+						$SE{upstream}->{$read_ID} = [$seq, $qual];
 					}
 				}else{
 					if($map_pos == $linked_RADtag_contigs{$contig}){
-						$SE{forward}->{$read_ID} = [$seq, $qual];
+						$SE{downstream}->{$read_ID} = [$seq, $qual];
 					}
 				}
 			}
@@ -214,32 +225,9 @@ for my $input (@inputFiles){ # for each input file given
 		#####################################################
 		# only keep PE reads whose mate maps to a RADtag site
 		#####################################################
-		my $revcomp_seq;
 		foreach my $read_ID (keys %PE_init){
 			# if there exists a SE read with the same read ID
-			# and it is among the reads that mapped as reverse complement
-			if(exists $SE{reverse}->{$read_ID}){
-				# unless the corresponding paired end read was also printed
-				# as reverse complement in the SAM input
-				unless( $PE_init{$read_ID}->[2] & 16 ){ 
-					# reverse complement it now
-					( $revcomp_seq = reverse $PE_init{$read_ID}->[0] ) =~ tr/ACGT/TGCA/;
-					# replace the PE read by its reverse complement
-					$PE_init{$read_ID}->[0] = $revcomp_seq;
-				}
-				$PE{$read_ID} = $PE_init{$read_ID};
-			# if there exists a SE read with the same read ID
-			# and it is among the reads that mapped in its original orientation
-			}elsif(exists $SE{forward}->{$read_ID}){
-				# if the corresponding PE got reverse complemented by the mapping programme
-				# thus put on the same strand as the SE read
-				if( $PE_init{$read_ID}->[2] & 16 ){ 
-					# reverse complement it again, so that the PE read is mapping on the
-					# opposite strand of the SE read again
-					( $revcomp_seq = reverse $PE_init{$read_ID}->[0] ) =~ tr/ACGT/TGCA/;
-					# replace the PE read by its reverse complement
-					$PE_init{$read_ID}->[0] = $revcomp_seq;
-				}
+			if(exists $SE{upstream}->{$read_ID} or exists $SE{downstream}->{$read_ID}){
 				$PE{$read_ID} = $PE_init{$read_ID};
 			}
 		}
@@ -253,7 +241,7 @@ for my $input (@inputFiles){ # for each input file given
 		# first all reads downstream of RAD site in one file
 		open( my $FOR, ">", $out_name) or die $!;
 
-		foreach my $read_ID (keys %{ $SE{forward} }){
+		foreach my $read_ID (keys %{ $SE{downstream} }){
 			($header = $read_ID) =~ s[1\/1$][2]; 
 			print $FOR "@", $header, "\n",
 						@{ $PE{$read_ID} }[0], "\n",
@@ -261,9 +249,9 @@ for my $input (@inputFiles){ # for each input file given
 						@{ $PE{$read_ID} }[1], "\n";
 			$header =~ s/2$/1/;
 			print $FOR "@", $header, "\n",
-		   				@{ $SE{forward}->{$read_ID} }[0], "\n",
+		   				@{ $SE{downstream}->{$read_ID} }[0], "\n",
 						"+", "\n",
-		   				@{ $SE{forward}->{$read_ID} }[1], "\n";
+		   				@{ $SE{downstream}->{$read_ID} }[1], "\n";
 		}
 
 		close $FOR;
@@ -273,7 +261,7 @@ for my $input (@inputFiles){ # for each input file given
 		# now all reads upstream of RAD site
 		open( my $REV, ">", $out_name) or die $!;
 
-		foreach my $read_ID (keys %{ $SE{reverse} }){
+		foreach my $read_ID (keys %{ $SE{upstream} }){
 			($header = $read_ID) =~ s[1\/1$][2]; 
 			print $REV "@", $header, "\n",
 						@{ $PE{$read_ID} }[0], "\n",
@@ -281,9 +269,9 @@ for my $input (@inputFiles){ # for each input file given
 						@{ $PE{$read_ID} }[1], "\n";
 			$header =~ s/2$/1/;
 			print $REV "@", $header, "\n",
-		   				@{ $SE{reverse}->{$read_ID} }[0], "\n",
+		   				@{ $SE{upstream}->{$read_ID} }[0], "\n",
 						"+", "\n",
-		   				@{ $SE{reverse}->{$read_ID} }[1], "\n";
+		   				@{ $SE{upstream}->{$read_ID} }[1], "\n";
 		}
 	}# END foreach contig
 }# END foreach input file
