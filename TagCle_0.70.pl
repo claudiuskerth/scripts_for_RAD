@@ -202,10 +202,10 @@ while (defined read_next_seq($SE)){
 		write_seq($SE);
 		write_seq($PE);
 	}
-	else{
-		write_discarded($SE);
-		write_discarded($PE);
-	}
+#	else{
+#		write_discarded($SE);
+#		write_discarded($PE);
+#	}
 
 }
 
@@ -387,7 +387,7 @@ sub initialize_seq_hash{
 
 	### open input file
 	if (defined $Infile){
-		if ($Infile =~ /(.*)\.gz$/){
+		if ($Infile =~ /\/(.*)\.gz$/){
 			open($in_fh, "zcat $Infile |") or die $!;
 			$seq_hash_ref->{'in_FH'} = $in_fh;
 			$OUTfile = "cleaned_".$1 unless defined $OUTfile;
@@ -398,7 +398,8 @@ sub initialize_seq_hash{
 		else{
 			open($in_fh, $Infile) or die $!;
 			$seq_hash_ref->{'in_FH'} = $in_fh;
-			$OUTfile = "cleaned_".$Infile unless defined $OUTfile;
+			my ($Infile_stub) = $Infile =~ /.*\/(.*)$/; #Claudius
+			$OUTfile = "cleaned_".$Infile_stub unless defined $OUTfile;
 			$Logfile = "log_".$Infile;
 			$Discardedfile = "discarded_".$Infile;
 			$seq_hash_ref->{'match_distance_file'} = "match_stat_".$Infile;
@@ -424,26 +425,29 @@ sub initialize_seq_hash{
 	### open output file
 	unless ($write_flag eq "n"){
 		if ($compress_flag == 0){
-			open ($out_fh, ">$OUTfile") or die $!;
+			open ($out_fh, ">$OUTfile") or die $!, $OUTfile, "\n";
 			$seq_hash_ref->{'out_FH'} = $out_fh;
 
-			open ($discarded_fh, ">$Discardedfile") or die $!;
-			$seq_hash_ref->{'discarded_FH'} = $discarded_fh;
+			#Claudius
+#			open ($discarded_fh, ">$Discardedfile") or die $!;
+#			$seq_hash_ref->{'discarded_FH'} = $discarded_fh;
 		}
 		else{
 			open $out_fh, "| gzip -c > $OUTfile\.gz" or die $!;
 			$seq_hash_ref->{'out_FH'} = $out_fh;
 
-			open $discarded_fh, "| gzip -c > $Discardedfile\.gz" or die $!;
-			$seq_hash_ref->{'discarded_FH'} = $discarded_fh;
+			#Claudius
+#			open $discarded_fh, "| gzip -c > $Discardedfile\.gz" or die $!;
+#			$seq_hash_ref->{'discarded_FH'} = $discarded_fh;
 		}
 	}
 
+	#Claudius
 	### open log file
-	unless ($log_write_flag eq "n"){
-		open($log_fh,">$Logfile") or die $!;
-		$seq_hash_ref->{'log_FH'} = $log_fh;
-	}
+#	unless ($log_write_flag eq "n"){
+#		open($log_fh,">$Logfile") or die $!;
+#		$seq_hash_ref->{'log_FH'} = $log_fh;
+#	}
 }
 
 sub initialize_matchstat_hash {
@@ -706,7 +710,7 @@ sub write_LOG {
 	my ($seq_hash_ref, $msg) = @_;
 	my $log_fh = $seq_hash_ref->{'log_FH'};
 	if (defined $msg){
-		print $log_fh $msg;
+#		print $log_fh $msg; # Claudius
 	}
 	else{
 		my $Start_time = gmtime($^T);
@@ -722,37 +726,37 @@ sub write_LOG {
 		my $percent_discarded = get_percent ($seq_hash_ref->{'count_total_discared'}, $seq_hash_ref->{'count_total_reads'});
 		my $percent_total_matched = get_percent ($seq_hash_ref->{'count_total_matched_tags'}, $seq_hash_ref->{'count_total_reads'});
 
-
-		print $log_fh "$version\n";
-		print $log_fh "\nProcessing\t$seq_hash_ref->{'in_file'}\n";
-		print $log_fh "Job started at: $Start_time\n";
-		print $log_fh "Job finished at: $End_time\n";
-		print $log_fh "Elapsed time: $mday day(s) $hour:$min:$sec\n\n";
-		print $log_fh "Adapter sequence 1        \t$tag1\n";
-		print $log_fh "Adapter sequence 2        \t$tag2\n";
-		print $log_fh "RevComp adapter sequence 1\t$revcom_tag1\n";
-		print $log_fh "RevComp adapter sequence 2\t$revcom_tag2\n";
-
-		if (defined $fussiness_allowed){
-			print $log_fh "Fuzziness allowed         \t$fussiness_allowed\n";	
-		}
-		else{
-			print $log_fh "Insertion allowed         \t$fussy_insertion\n";
-			print $log_fh "Deletion allowed          \t$fuzzy_deletion\n";
-			print $log_fh "Substitution allowed      \t$fuzzy_substitution\n";
-		}
-
-
-		#print $log_fh "length of 3' end trimming \t$trim_length\n";
-		print $log_fh "Total reads               \t$seq_hash_ref->{'count_total_reads'}\n";
-		print $log_fh "Total matched             \t$seq_hash_ref->{'count_total_matched_tags'}\t($percent_total_matched %)\n";
-		print $log_fh "Exact match               \t$seq_hash_ref->{'count_exact_match'}\n";
-		print $log_fh "SWAlign match             \t$seq_hash_ref->{'count_SW_match'}\n";
-		print $log_fh "Fuzzy match               \t$seq_hash_ref->{'count_fuzzy_match'}\n";
-		print $log_fh "Non-match                 \t$seq_hash_ref->{'count_non_match'}\n";
-		print $log_fh "Too_short after trimming  \t$seq_hash_ref->{'count_too_short'}\n";
-		print $log_fh "Total retained            \t$seq_hash_ref->{'count_total_retained'}\t($percent_retained %)\n";
-		print $log_fh "Total discared            \t$seq_hash_ref->{'count_total_discared'}\t($percent_discarded %)\n";
+		#Claudius
+#		print $log_fh "$version\n";
+#		print $log_fh "\nProcessing\t$seq_hash_ref->{'in_file'}\n";
+#		print $log_fh "Job started at: $Start_time\n";
+#		print $log_fh "Job finished at: $End_time\n";
+#		print $log_fh "Elapsed time: $mday day(s) $hour:$min:$sec\n\n";
+#		print $log_fh "Adapter sequence 1        \t$tag1\n";
+#		print $log_fh "Adapter sequence 2        \t$tag2\n";
+#		print $log_fh "RevComp adapter sequence 1\t$revcom_tag1\n";
+#		print $log_fh "RevComp adapter sequence 2\t$revcom_tag2\n";
+#
+#		if (defined $fussiness_allowed){
+#			print $log_fh "Fuzziness allowed         \t$fussiness_allowed\n";	
+#		}
+#		else{
+#			print $log_fh "Insertion allowed         \t$fussy_insertion\n";
+#			print $log_fh "Deletion allowed          \t$fuzzy_deletion\n";
+#			print $log_fh "Substitution allowed      \t$fuzzy_substitution\n";
+#		}
+#
+#
+#		#print $log_fh "length of 3' end trimming \t$trim_length\n";
+#		print $log_fh "Total reads               \t$seq_hash_ref->{'count_total_reads'}\n";
+#		print $log_fh "Total matched             \t$seq_hash_ref->{'count_total_matched_tags'}\t($percent_total_matched %)\n";
+#		print $log_fh "Exact match               \t$seq_hash_ref->{'count_exact_match'}\n";
+#		print $log_fh "SWAlign match             \t$seq_hash_ref->{'count_SW_match'}\n";
+#		print $log_fh "Fuzzy match               \t$seq_hash_ref->{'count_fuzzy_match'}\n";
+#		print $log_fh "Non-match                 \t$seq_hash_ref->{'count_non_match'}\n";
+#		print $log_fh "Too_short after trimming  \t$seq_hash_ref->{'count_too_short'}\n";
+#		print $log_fh "Total retained            \t$seq_hash_ref->{'count_total_retained'}\t($percent_retained %)\n";
+#		print $log_fh "Total discared            \t$seq_hash_ref->{'count_total_discared'}\t($percent_discarded %)\n";
 	
 		print "Elapsed time              :\t$mday day(s) $hour:$min:$sec\n";
 		print "Total reads               :\t$seq_hash_ref->{'count_total_reads'}\n";
