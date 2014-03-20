@@ -24,8 +24,6 @@
 use strict;
 use warnings;
 
-# TODO: for long contigs, also store the mapping position on the contig and report it
-
 
 my @which = `which samtools`;
 die "samtools needs to be installed and in your PATH\n" unless @which;
@@ -60,14 +58,14 @@ for my $input (@inputFiles){ # for each input file given
 	if($input =~ /bam$/){
 		# the "-F128" to samtools lets it output only single end reads
 		# the awk command takes only read pairs with the "proper pair" flag set
-		# i. e. only properly mapped read pairs are used for contig detection.
+		# i. e. ONLY PROPERLY MAPPED READ PAIRS ARE USED FOR CONTIG DETECTION.
 		open( $IN, "samtools view -F128 $input | awk \'and(\$2, 2)\' | " ) or die $!;
 #	}elsif($input =~ /\.sam\./){
 #		#open( $IN, "samtools view -S $input | head -n 10000 | " ) or die $!; 
 #		#open( $IN, "samtools view -SF128 $input | awk \'and(\$2, 2)\' | " ) or die $!; 
 #		die "Your input file needs to end either with bam or sam or sam.gz.\n";
 	}else{
-		die "Your input file needs to end either with bam and be a position sorted BAM file.\n";
+		die "Your input file needs to end with bam and be a position sorted BAM file.\n";
 	}
 
 	###########################################
@@ -135,7 +133,7 @@ for my $input (@inputFiles){ # for each input file given
 	close $IN;
 
 	# print the detected contigs to a report file
-	($stub = $input) =~ s/\.bam//; 
+	($stub = $input) =~ s/.*\/(.*)\.bam/$1/; 
 
 	open( my $OUT, ">", $stub . "_linked_RADtag_contigs.out" ) or die $!;
 
@@ -165,7 +163,7 @@ for my $input (@inputFiles){ # for each input file given
 		if($verbose){ print "Reading in bam records for reference contig ", $contig, "\n"; }
 
 		# initialise variables
-		my ($read_ID, $seq, $qual, %PE_init, %PE, %SE, $revcomp);
+		my ($read_ID, $seq, $qual, %PE_init, %PE, %SE, $revcomp, $pp);
 
 		# while reading in all bam records for this contig
 		while(<$IN>){
@@ -187,13 +185,15 @@ for my $input (@inputFiles){ # for each input file given
 
 			# if read is second in pair 
 			if($flag & 128){ 						
+				# if the read was reverse complemented by the mapping programme
 				if($flag & 16){
+					# get the read in its original orientation
 					($revcomp = reverse $seq) =~ tr/ACGT/TGCA/;
 					$seq = $revcomp;
 					($revcomp = reverse $qual) =~ tr/ACGT/TGCA/;
 					$qual = $revcomp;
 				}
-				$PE_init{$read_ID} = [$seq, $qual];
+				$PE_init{$read_ID} = [$seq, $qual]; # collect all PE reads
 			}else{ 
 				# If only the mate of this single-end read mapped to the current contig,
 				# skip recording this read. It cannot come from a RAD site that was detected
@@ -204,17 +204,17 @@ for my $input (@inputFiles){ # for each input file given
 					$map_pos += ($read_length-1 - 3);
 					# if the read maps to the linked RADtags site detected for this contig
 					if($map_pos == $linked_RADtag_contigs{$contig}){
-					# Note, if there is more than one RAD site in the contig, only the 
-					# most upstream (i. e. low map position) will be considered so far.
 						($revcomp = reverse $seq) =~ tr/ACGT/TGCA/;
 						$seq = $revcomp;
 						($revcomp = reverse $qual) =~ tr/ACGT/TGCA/;
 						$qual = $revcomp;
-						$SE{upstream}->{$read_ID} = [$seq, $qual];
+						if($flag & 2){ $pp = 1 }else{ $pp = 0 }
+						$SE{upstream}->{$read_ID} = [$seq, $qual, $pp];
 					}
 				}else{
 					if($map_pos == $linked_RADtag_contigs{$contig}){
-						$SE{downstream}->{$read_ID} = [$seq, $qual];
+						if($flag & 2){ $pp = 1 }else{ $pp = 0 }
+						$SE{downstream}->{$read_ID} = [$seq, $qual, $pp];
 					}
 				}
 			}
@@ -242,13 +242,14 @@ for my $input (@inputFiles){ # for each input file given
 		open( my $FOR, ">", $out_name) or die $!;
 
 		foreach my $read_ID (keys %{ $SE{downstream} }){
-			($header = $read_ID) =~ s[1\/1$][2]; 
-			print $FOR "@", $header, "\n",
+			$pp = "";
+			($header = $read_ID) =~ s[1\/1$][]; 
+			if($SE{downstream}->{$read_ID}->[2]){ $pp = "pp_" }
+			print $FOR "@", $header, $pp, "2\n",
 						@{ $PE{$read_ID} }[0], "\n",
 						"+", "\n",
 						@{ $PE{$read_ID} }[1], "\n";
-			$header =~ s/2$/1/;
-			print $FOR "@", $header, "\n",
+			print $FOR "@", $header, "1\n",
 		   				@{ $SE{downstream}->{$read_ID} }[0], "\n",
 						"+", "\n",
 		   				@{ $SE{downstream}->{$read_ID} }[1], "\n";
@@ -262,13 +263,14 @@ for my $input (@inputFiles){ # for each input file given
 		open( my $REV, ">", $out_name) or die $!;
 
 		foreach my $read_ID (keys %{ $SE{upstream} }){
-			($header = $read_ID) =~ s[1\/1$][2]; 
-			print $REV "@", $header, "\n",
+			$pp = "";
+			($header = $read_ID) =~ s[1\/1$][]; 
+			if($SE{upstream}->{$read_ID}->[2]){ $pp = "pp_" }
+			print $REV "@", $header, $pp, "2\n",
 						@{ $PE{$read_ID} }[0], "\n",
 						"+", "\n",
 						@{ $PE{$read_ID} }[1], "\n";
-			$header =~ s/2$/1/;
-			print $REV "@", $header, "\n",
+			print $REV "@", $header, "1\n",
 		   				@{ $SE{upstream}->{$read_ID} }[0], "\n",
 						"+", "\n",
 		   				@{ $SE{upstream}->{$read_ID} }[1], "\n";
@@ -305,7 +307,9 @@ sub comp_map_pos{
 			if(($pos2 + $read_length-1 - 3) == $pos1){ 
 #				push @{$linked_RADtag_contigs_ref}, $contig_ID;
 				$linked_RADtag_contigs_ref->{$contig_ID} = $pos1;
-				last MAPPOS;
+				last MAPPOS; # Store the reference contig name and position and stop searching as soon 
+				# as a linked RADtags site is found. Since the input bam is position sorted, only the 
+				# most upstream linked RADtags site will be considered so far.
 			}
 		}
 	}	
