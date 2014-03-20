@@ -387,7 +387,7 @@ sub initialize_seq_hash{
 
 	### open input file
 	if (defined $Infile){
-		if ($Infile =~ /\/(.*)\.gz$/){
+		if ($Infile =~ /.*\/(.*)\.gz$/){
 			open($in_fh, "zcat $Infile |") or die $!;
 			$seq_hash_ref->{'in_FH'} = $in_fh;
 			$OUTfile = "cleaned_".$1 unless defined $OUTfile;
