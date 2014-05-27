@@ -44,39 +44,44 @@ for (@files){
 ## sort files by line count descendingly
 my @files_sorted = sort {$h{$b} <=> $h{$a}} keys %h;
 
-use threads;
+use threads 'stringify';
 use threads::shared;
 use Thread;
 use Thread::Semaphore;
 
-my $mutex = Thread::Semaphore->new(4);
+my $max_threads = 22;
 
-my (@thr, $cmd);
+my $mutex = Thread::Semaphore->new($max_threads);
+
 my %gather :shared;
 
 for my $file (@files_sorted[30..40]){
 	for my $kmer (11..33){
-		print("Assembling $file with kmer length of ", $kmer, "\n");
-		push @thr, threads->create(sub {
-				$mutex->down;
-				my ($file, $kmer) = @_;
-				my $cmd = "SSAKE -f $file -w 1 -o 1 -m $kmer -c 1 > /dev/null";
-				system($cmd)==0 or die $!;
-				{
-					lock %gather;
-					gather($file);
-				}
-				$mutex->up;
-			}, $file, $kmer);
+		$mutex->down;
+#		print("Assembling $file with kmer length of ", $kmer, "\n");
+#		push @thr, threads->create('run_SSAKE', $file, $kmer);
+		my $thr = threads->create('run_SSAKE', $file, $kmer);
+		print "Thread $thr started ...\n";
 	}
 }
-$_->join for @thr;
+$_->join for threads->list();
 
 printf STDERR "\n## Comnpute time: %0.3f secs\n\n", time() - $start;
 
 #-------------------------------------------------------------------------------
 #  subroutines
 #-------------------------------------------------------------------------------
+
+sub run_SSAKE {
+	my ($file, $kmer) = @_;
+	my $cmd = "SSAKE -f $file -w 1 -o 1 -m $kmer -c 1 > /dev/null";
+	system($cmd)==0 or die $!;
+		{
+			lock %gather;
+			gather($file);
+		}
+	$mutex->up;
+}
 
 sub gather {
 	my ($file) = @_;	
