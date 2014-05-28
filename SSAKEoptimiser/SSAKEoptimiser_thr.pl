@@ -32,7 +32,7 @@ my $start = time();
 #-------------------------------------------------------------------------------
 
 ## get input file names
-my @files = glob("MCE/input/*.fa");
+my @files = glob("input/*.fa");
 
 ## get line count for each file
 my %h;
@@ -58,12 +58,12 @@ my %gather :shared;
 for my $file (@files_sorted[30..40]){
 	for my $kmer (11..33){
 		$mutex->down;
-#		print("Assembling $file with kmer length of ", $kmer, "\n");
-#		push @thr, threads->create('run_SSAKE', $file, $kmer);
+		print("Assembling $file with kmer length of ", $kmer, "\n");
 		my $thr = threads->create('run_SSAKE', $file, $kmer);
 		print "Thread $thr started ...\n";
 	}
 }
+
 $_->join for threads->list();
 
 printf STDERR "\n## Comnpute time: %0.3f secs\n\n", time() - $start;

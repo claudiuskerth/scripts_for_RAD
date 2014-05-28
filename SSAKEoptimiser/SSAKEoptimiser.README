@@ -1,0 +1,46 @@
+SSAKEoptimiser
+===============
+
+The files in this directory all do the same thing:
+they run the de novo assembler SSAKE on a number of input files
+containing sequences to be assembled with each other. Each input 
+file provides the sequences for a separate assembly that shall
+be optimised for contig length by running SSAKE with a range of
+kmer lengths from 11 to 33 and only keeping the output files for
+the optimal assembly.
+
+Parallelisation
+===============
+
+There are two levels in this problem that lend themselves to 
+parallelisation on multi-core machines:
+
++ input files
++ kmer lengths
+
+Parallelising over only one of these levels would (at least on
+many-core machines) mean that some cores are kept idle while 
+waiting for the next step, i. e. next file or next kmer length,
+because other cores are still busy computing the current step.
+In order to maximise core usage, we need to parallelise over both 
+levels at the same time. All four SSAKEoptimiser_* scripts provided
+here accomplish this task by generating all possible input file
+x kmer length combinations and feeding that to the next available
+core. Each script also contains a callback to the main/manager/parent
+process (gather function) that keeps track of how many assemblies
+have been run for each input file. Once all kmers have been tried
+for an input file, the main process will pick the SSAKE output
+that produced the longest contig and delete all other SSAKE output 
+files for that input file.
+Even though all four scripts employ a fundamentally similar algorithm,
+they use different Perl modules, so that they can be compared in terms
+of ease of implementation as well as speed. They are:
+
++ Many-core Engine (MCE) 
++ Parallel::ForkManager
++ threads
++ threads + Thread::Queue
+
+All four scripts run with basically the same speed.
+MCE is the most recent and most versatile module. However, for this 
+problem it neither provides greater ease of use nor greater speed.

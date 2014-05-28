@@ -28,12 +28,6 @@ use warnings;
 
 use Time::HiRes qw(time sleep);
 
-my $parallel = @ARGV ? shift @ARGV : 0;
-
-## always run in parallel mode, not matter
-## wether specified on command line or not
-$parallel = 1;
-
 my $start = time();
 
 #-------------------------------------------------------------------------------
@@ -51,28 +45,39 @@ my @files = glob("input/*.fa");
 
 my %h;
 # get file size for each input file
-if($parallel){
 	### in parallel using MCE::Loop ##
 	%h = mce_loop {
 		my $filename = $_;
 		my $filesize = -s $filename;
 		MCE->gather($filename, $filesize);
 	} @files;
-}else{
-	### in series ###
-	for (@files){
-		my $filename = $_;
-		my $filesize = -s $filename;
-		$h{$filename} = $filesize;
-	}
-}
 
 ## sort files by size descendingly ##
 my @files_sorted = sort {$h{$b} <=> $h{$a}} keys %h;
 
 
 #-------------------------------------------------------------------------------
-#  gather function
+#  run SSAKE in parallel
+#-------------------------------------------------------------------------------
+
+use MCE::Step;
+
+## create reference to input
+my $input =  [@files_sorted[30 .. 40]]; 
+
+## run MCE Step ##
+mce_step {
+	task_name => ['command', 'SSAKE'],
+	max_workers => [ 1, 'Auto-2' ],
+	chunk_size => 1,
+	gather => gather_output()
+}, \&setup_commandline, \&run_SSAKE, $input;
+
+printf STDERR "\n## Comnpute time: %0.3f secs\n\n", time() - $start;
+
+
+#-------------------------------------------------------------------------------
+#  subroutines
 #-------------------------------------------------------------------------------
 
 ## This function is run by the manager process ##
@@ -91,44 +96,6 @@ sub gather_output {
 		return;
 	}
 }
-
-
-#-------------------------------------------------------------------------------
-#  run SSAKE in parallel
-#-------------------------------------------------------------------------------
-
-use MCE::Step;
-
-## create reference to input
-my $input =  [@files_sorted[30 .. 40]]; 
-
-if($parallel){
-	## run MCE Step ##
-	mce_step {
-		task_name => ['command', 'SSAKE'],
-		max_workers => [ 1, 'Auto-2' ],
-		chunk_size => 1,
-		gather => gather_output()
-	}, \&setup_commandline, \&run_SSAKE, $input;
-}else{
-	for my $file (@{$input}){
-		for my $kmer (11..33){
-			my $cmd = "SSAKE -f $file -w 1 -o 1 -m $kmer -c 1 > /dev/null";
-			print("Assembling $file with kmer length of ", $kmer, "\n");
-			# this does a fork for the command,
-			# while the worker waits for the forked process to complete
-			system($cmd) == 0 or die $!; 
-			find_longest_contig($file);
-		}
-	}
-}
-
-printf STDERR "\n## Comnpute time: %0.3f secs\n\n", time() - $start;
-
-
-#-------------------------------------------------------------------------------
-#  subroutines
-#-------------------------------------------------------------------------------
 
 sub setup_commandline {
 	my $file = $_;

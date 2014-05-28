@@ -32,7 +32,7 @@ my $start = time();
 #-------------------------------------------------------------------------------
 
 ## get input file names
-my @files = glob("MCE/input/*.fa");
+my @files = glob("input/*.fa");
 
 ## get line count for each file
 my %h;
