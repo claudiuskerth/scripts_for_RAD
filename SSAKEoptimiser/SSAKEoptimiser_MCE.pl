@@ -30,30 +30,45 @@ use Time::HiRes qw(time sleep);
 
 my $start = time();
 
+my $usage = "
+$0 -in *fa
+
+-in     takes input file names (shell character expansion allowed)
+-spare  specify the number of cores that this script should NOT use
+-h      prints this help
+\n";
+
 #-------------------------------------------------------------------------------
 #  get input and sort by size
 #-------------------------------------------------------------------------------
+
+my @in_filenames;
+my $spare = 0;
+
+parse_command_line(@ARGV);
+
+die $usage unless @in_filenames;
+for(@in_filenames){
+	unless (-e $_){ die "file does not exist: $_\n"}
+}
+
+
 use MCE::Loop chunk_size => 1;
 
 MCE::Loop::init {
 	max_workers => 10
 };
 
-## get input file names
-my @files = glob("input/*.fa");
-
-
 my %h;
 # get file size for each input file
-	### in parallel using MCE::Loop ##
-	%h = mce_loop {
-		my $filename = $_;
-		my $filesize = -s $filename;
-		MCE->gather($filename, $filesize);
-	} @files;
+%h = mce_loop {
+	my $filename = $_;
+	my $filesize = -s $filename;
+	MCE->gather($filename, $filesize);
+} @in_filenames;
 
 ## sort files by size descendingly ##
-my @files_sorted = sort {$h{$b} <=> $h{$a}} keys %h;
+my @in_filenames_sorted = sort {$h{$b} <=> $h{$a}} keys %h;
 
 
 #-------------------------------------------------------------------------------
@@ -61,24 +76,47 @@ my @files_sorted = sort {$h{$b} <=> $h{$a}} keys %h;
 #-------------------------------------------------------------------------------
 
 use MCE::Step;
+use MCE::Util 'get_ncpu';
+
+my $n_cores = get_ncpu();
+my $spawn = $n_cores- 2 - $spare;
+die "No cores left for SSAKE run\n" if ($spawn <= 0);
+print "Using ", $spawn+2, " of $n_cores cores on this machine.\n";
 
 ## create reference to input
-my $input =  [@files_sorted[30 .. 40]]; 
+my $input =  [@in_filenames_sorted[30 .. 40]]; 
 
 ## run MCE Step ##
 mce_step {
 	task_name => ['command', 'SSAKE'],
-	max_workers => [ 1, 'Auto-2' ],
+	max_workers => [ 1, $spawn ], # main: 1, command: 1, SSAKE: ncpu-2-spare
 	chunk_size => 1,
 	gather => gather_output()
 }, \&setup_commandline, \&run_SSAKE, $input;
 
-printf STDERR "\n## Comnpute time: %0.3f secs\n\n", time() - $start;
+#printf STDERR "\n## Comnpute time: %0.3f secs\n\n", time() - $start;
+printf STDOUT "%d\t%.3f\n", $spawn+2, time() - $start;
 
 
 #-------------------------------------------------------------------------------
 #  subroutines
 #-------------------------------------------------------------------------------
+
+sub parse_command_line{
+	while($_ = shift){
+#		print "$_\n";
+		if(/^-+in/){
+			while($_ = shift) {
+				last if /^-+/;
+				push @in_filenames, $_;
+			}
+		}
+		if(defined($_)){
+			if(/^-+h/){ die $usage }
+			elsif(/^-+spare/){ $spare = shift; }
+		}
+	}
+}
 
 ## This function is run by the manager process ##
 sub gather_output {
@@ -89,7 +127,7 @@ sub gather_output {
 		my ($file) = @_;
 		$tmp{$file}++;
 		if($tmp{$file} == 33-11+1){
-			MCE->print("Finding longest contig for $file.\n");
+#			MCE->print("Finding longest contig for $file.\n");
 			find_longest_contig($file);
 			delete $tmp{$file};
 		}
@@ -107,7 +145,7 @@ sub setup_commandline {
 sub run_SSAKE {
 	my ($mce, $file, $kmer) = @_;
 	my $cmd = "SSAKE -f $file -w 1 -o 1 -m $kmer -c 1 > /dev/null";
-	MCE->print("Assembling $file with kmer length of ", $kmer, "\n");
+#	MCE->print("Assembling $file with kmer length of ", $kmer, "\n");
 	# this does a fork for the command,
     # while the worker waits for the forked process to complete
 	system($cmd) == 0 or die $!; 
@@ -129,23 +167,23 @@ sub run_SSAKE {
 sub find_longest_contig {
 	my $file = shift;
 
-	# get output file names containing the contigs
-	my @output = `ls $file*contigs`; # use glob
+	# get all output file names containing the contigs
+	my @output = `ls $file*contigs`; 
 	chomp @output;
 
-	my $longest_contig_length = 0;
 	my %longest_contig_hash;
 
 	# get the length of the longest contig for each SSAKE x kmer run
 	for my $output (@output){
-	
+
 		if(-z $output){ # if the contig file is empty
+			print("Contig file is empty for $output\n");
 			$output =~ s/contigs$/\*/; 
-			MCE->print("Contig file is empty for $output\n");
 			system("rm -f $output")==0 or die $!;
 			next; 
 		}
 
+		my $longest_contig_length = 0; # reset to 0 for each kmer output file
 		open my $IN, "<", $output or die $!;
 		my $length;
 		while(<$IN>){
@@ -155,9 +193,10 @@ sub find_longest_contig {
 			$longest_contig_length = $length if ($length > $longest_contig_length);
 		}
 		close $IN;
-		MCE->print("$output : $longest_contig_length\n");
+
+#		print("$output : $longest_contig_length\n");
 		unless ($longest_contig_length){
-			MCE->print("Found no contig length for $output\n");
+			print("Found no contig length for $output\n");
 			next;
 		}; 
 		$longest_contig_hash{$output} = $longest_contig_length;
@@ -165,24 +204,19 @@ sub find_longest_contig {
 
 	# exit if no contigs could be assembled
 	unless(keys %longest_contig_hash){
-		MCE->print("No contigs could be assembled for $file.\n");
+		print("No contigs could be assembled for $file.\n");
 		map { s/contigs$/\*/ } @output;
 		system("rm -f @output")==0 or die $!;
 		return;
 	}
 
-	my @remove;
 	# sort output file names by contig length
-	foreach my $output (sort {$longest_contig_hash{$b} <=> $longest_contig_hash{$a}} keys %longest_contig_hash){
-		push(@remove, $output);
-	}
-
+	my @remove = sort {$longest_contig_hash{$b} <=> $longest_contig_hash{$a}} keys %longest_contig_hash;
 
 	# save the name of the output file containing the longest contig from
 	# all SSAKE runs
 	my $keep = shift(@remove);
-	MCE->print("File containing longest contig:\n", "$keep : $longest_contig_hash{$keep}\n\n");
-
+#	print("File containing longest contig:\n", "$keep : $longest_contig_hash{$keep}\n\n");
 
 	map { s/contigs$/\*/ } @remove;
 	system("rm -f @remove")==0 or die $!;

@@ -27,23 +27,58 @@ use Time::HiRes qw(time sleep);
 
 my $start = time();
 
+
+my $usage = "
+$0 -in *fa
+
+-in     takes input file names (shell character expansion allowed)
+-spare  specify the number of cores that this script should NOT use (default 0)
+-h      prints this help
+\n";
+
+
+#-------------------------------------------------------------------------------
+#  parse command line 
+#-------------------------------------------------------------------------------
+
+my @in_filenames;
+my $spare = 0;
+
+parse_command_line(@ARGV);
+
+die $usage unless @in_filenames;
+for(@in_filenames){
+	unless (-e $_){ die "file does not exist: $_\n"}
+}
+
+
 #-------------------------------------------------------------------------------
 #  get input and sort by size
 #-------------------------------------------------------------------------------
 
 ## get input file names
-my @files = glob("input/*.fa");
+#my @files = glob("input/*.fa");
 
 ## get line count for each file
 my %h;
-for (@files){
+for (@in_filenames){
 	my $filename = $_;
 	my $filesize = -s $filename;
 	$h{$filename} = $filesize;
 }
 ## sort files by size descendingly
-my @files_sorted = sort {$h{$b} <=> $h{$a}} keys %h;
+my @in_filenames_sorted = sort {$h{$b} <=> $h{$a}} keys %h;
 
+#-------------------------------------------------------------------------------
+#  get the number of cores to use
+#-------------------------------------------------------------------------------
+
+use MCE::Util 'get_ncpu';
+
+my $n_cores = get_ncpu();
+my $spawn = $n_cores - 1 - $spare;
+die "No cores left for SSAKE run\n" if ($spawn <= 0);
+print "Using ", $spawn+1, " of $n_cores cores on this machine.\n";
 
 #-------------------------------------------------------------------------------
 #  set up queue and spawn worker threads
@@ -57,11 +92,11 @@ use Thread::Queue;
 my $q = Thread::Queue->new();
 
 # this shared variable needs to be defined before spawning the workers
-# threads that try tp lock it
+# threads that try to lock it
 my %gather :shared;
 
 # fill the queue with parameter combinations
-for my $file (@files_sorted[30..40]){
+for my $file (@in_filenames_sorted[30..40]){
 	for my $kmer (11..33){
 		$q->enqueue([$file, $kmer]);
 	}
@@ -72,23 +107,40 @@ for my $file (@files_sorted[30..40]){
 ##
 
 # set the number of worker threads to spawn
-my $threads = 22;
+#my $spawn = 22;
 
 # spawn worker threads
-threads->create('run_SSAKE') for (1..$threads);
+threads->create('run_SSAKE') for (1..$spawn);
 
-print "Number of running threads: " . scalar threads->list(threads::running) . "\n";
+#print "Number of running threads: " . scalar threads->list(threads::running) . "\n";
 
 # this is only necessary if 'dequeue' is used instead of dequeue_nb
 #$q->enqueue((undef) x $threads); # note the parentheses around undef are necessary
 
 $_->join for threads->list();
 
-printf STDERR "\n## Comnpute time: %0.3f secs\n\n", time() - $start;
+#printf STDERR "\n## Comnpute time: %0.3f secs\n\n", time() - $start;
+printf STDOUT "%d\t%.3f\n", $spawn+1, time() - $start;
 
 #-------------------------------------------------------------------------------
 #  subroutines
 #-------------------------------------------------------------------------------
+
+sub parse_command_line{
+	while($_ = shift){
+#		print "$_\n";
+		if(/^-+in/){
+			while($_ = shift) {
+				last if /^-+/;
+				push @in_filenames, $_;
+			}
+		}
+		if(defined($_)){
+			if(/^-+h/){ die $usage }
+			elsif(/^-+spare/){ $spare = shift; }
+		}
+	}
+}
 
 sub run_SSAKE {
 	while(my $run = $q->dequeue_nb()){
@@ -106,7 +158,7 @@ sub gather {
 	my ($file) = @_;	
 	$gather{$file}++;
 	if($gather{$file} == 33-11+1){
-		print("Finding longest contig for $file.\n");
+#		print("Finding longest contig for $file.\n");
 		find_longest_contig($file);
 		delete $gather{$file};
 	}
@@ -132,7 +184,6 @@ sub find_longest_contig {
 	my @output = `ls $file*contigs`; 
 	chomp @output;
 
-	my $longest_contig_length = 0;
 	my %longest_contig_hash;
 
 	# get the length of the longest contig for each SSAKE x kmer run
@@ -145,6 +196,7 @@ sub find_longest_contig {
 			next; 
 		}
 
+		my $longest_contig_length = 0; # reset to 0 for each kmer output file
 		open my $IN, "<", $output or die $!;
 		my $length;
 		while(<$IN>){
@@ -154,7 +206,8 @@ sub find_longest_contig {
 			$longest_contig_length = $length if ($length > $longest_contig_length);
 		}
 		close $IN;
-		print("$output : $longest_contig_length\n");
+
+#		print("$output : $longest_contig_length\n");
 		unless ($longest_contig_length){
 			print("Found no contig length for $output\n");
 			next;
@@ -170,18 +223,13 @@ sub find_longest_contig {
 		return;
 	}
 
-	my @remove;
 	# sort output file names by contig length
-	foreach my $output (sort {$longest_contig_hash{$b} <=> $longest_contig_hash{$a}} keys %longest_contig_hash){
-		push(@remove, $output);
-	}
-
+	my @remove = sort {$longest_contig_hash{$b} <=> $longest_contig_hash{$a}} keys %longest_contig_hash;
 
 	# save the name of the output file containing the longest contig from
 	# all SSAKE runs
 	my $keep = shift(@remove);
-	print("File containing longest contig:\n", "$keep : $longest_contig_hash{$keep}\n\n");
-
+#	print("File containing longest contig:\n", "$keep : $longest_contig_hash{$keep}\n\n");
 
 	map { s/contigs$/\*/ } @remove;
 	system("rm -f @remove")==0 or die $!;
