@@ -96,7 +96,7 @@ my $q = Thread::Queue->new();
 my %gather :shared;
 
 # fill the queue with parameter combinations
-for my $file (@in_filenames_sorted[30..40]){
+for my $file (@in_filenames_sorted){
 	for my $kmer (11..33){
 		$q->enqueue([$file, $kmer]);
 	}
