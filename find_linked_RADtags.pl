@@ -23,8 +23,7 @@
 
 use strict;
 use warnings;
-use diagnostics;
-
+#use diagnostics;
 
 my @which = `which samtools`;
 die "samtools needs to be installed and in your PATH\n" unless @which;
@@ -96,6 +95,7 @@ for my $filename (@inputFiles){
 
 	# index the input file for retrieval of reads with samtools
 	#system("samtools index $filename")==0 or die $!;
+	#system("samtools index $filename")==0 or die $!;
 	# unfortunately, in the collect PE reads step, I also need to collect discordantly mapped PE reads
 	# whose SE read mapped to a detected RADtag site. So 'samtools view infile UNIGENE' will
 	# be faster but will not get all reads I want.
@@ -139,7 +139,7 @@ for my $filename (@inputFiles){
 sub parse_command_line{
 	while(@ARGV){
 		$_ = shift @ARGV;
-		if(/^-h$/){die $usage;}
+		if(/^-+h$/){croak $usage;}
 		elsif(/^-+o/){ $overlap = shift @ARGV; }
 		elsif(/^-+v$/){ $verbose = 1; }
 		elsif(/^-+p/){ $collect_PE_reads = 1; }
@@ -218,10 +218,15 @@ sub comp_map_pos{
 #     SEE ALSO: n/a
 #===============================================================================
 sub get_3prime_map_pos {
-			my @shift = $cigar =~ /(\d+)[MD]/g;
-			# add sum of length of M and D to mapping position
-			map { $map_pos += $_ } @shift;
-			$map_pos--;
+	my @shift = $cigar =~ /(\d+)[MI]/g; # taking numbers in CIGAR string makes it independent of read length
+	# add sum of length of M and I to mapping position
+	map { $map_pos += $_ } @shift;
+	# if the read starts with an insertion, the first matching base
+	# determines the mapping position of the read. This determines
+	# the mapping position of the first base of the read as if the read were
+	# mapped without the insertion
+	if ($cigar =~ /^(\d+)I/){ $map_pos -= $1; }
+	$map_pos--;
 }
 
 
@@ -299,7 +304,7 @@ sub find_contigs_with_linked_RADtags {
 sub store_mapping_pos {
 	# if the reads maps to the reverse strand
 	# and does not end with an insertion
-	if($flag & 16 and $cigar !~ /\d+I$/){
+	if($flag & 16){
 		# the new mapping position is the most 3 prime reference position 
 		# that is covered by the read 
 		get_3prime_map_pos();
@@ -307,7 +312,12 @@ sub store_mapping_pos {
 		push @{ $map_pos{R} }, $map_pos; 
 	# the read maps to the forward strand
 	# and if the read mapping does not start with an insertion
-	}elsif($cigar !~ /^\d+I/){
+	}else{
+		# if the read starts with an insertion, the first matching base
+		# determines the mapping position of the read. This determines
+		# the mapping position of the first base of the read as if the read were
+		# mapped without the insertion:
+		if ($cigar =~ /^(\d+)I/){ $map_pos -= $1; }
 		push @{ $map_pos{F} }, $map_pos; 
 	}
 }
@@ -479,7 +489,6 @@ sub print_out_reads {
 	close $FOR;
 
 	$out_name = $stub . "_$detected_contig" . "_upstream" . ".fq";
-
 	# now all reads upstream of RAD site
 	open( my $REV, ">", $out_name) or die $!;
 
