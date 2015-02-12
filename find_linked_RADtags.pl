@@ -109,7 +109,9 @@ for my $filename (@inputFiles){
 			# get all reads that map to this contig. Note, that unmapped reads
 			# get the same mapping position as their mapped mates.
 			# The awk command insures that this also gets reads that mapped to other
-			# contigs, but whose mate mapped to this contig.
+			# contigs, but whose mate mapped to this contig. Without the need for those
+			# reads, I could iterate over the sorted input file only once in order to collect
+			# PE reads.
 			open( $IN, "samtools view $filename | awk \'/$detected_contig/\' | ") or die $!;
 
 			if($verbose){ print "Reading in bam records for reference contig ", $detected_contig, "\n"; }
@@ -119,6 +121,8 @@ for my $filename (@inputFiles){
 			#  as well as their PE reads
 			#--------------------------------------------------------------
 			my ($SE_ref, $PE_ref) = collect_all_reads($IN, $detected_contig, $linked_RADtag_contigs_ref);
+
+			close $IN;
 			
 			#---------------------------------------------
 			# print out all SE and PE reads that map to a 
@@ -366,6 +370,7 @@ sub log_detected_contigs {
 #     SEE ALSO: n/a
 #===============================================================================
 sub collect_all_reads {
+
 	my	($IN, $detected_contig, $linked_RADtag_contigs_ref)	= @_;
 	# initialise variables
 	my ($read_ID, $seq, $qual, %PE_init, %SE, %PE, $pp);
@@ -402,8 +407,6 @@ sub collect_all_reads {
 			next if ($contig_ID !~ $detected_contig);
 			# if read is printed as reverse complement of input sequence in the SAM input
 			if($flag & 16){ 
-				# ignore read if it ends in an insertion
-				next if ($cigar =~ /\d+I$/);
 				# get most 3 prime mapping position
 				get_3prime_map_pos();
 				($map_pos -= $overlap) += 1;
@@ -412,17 +415,13 @@ sub collect_all_reads {
 				# if the read maps to the linked RADtags site detected for this contig
 				if($map_pos == $linked_RADtag_contigs_ref->{$detected_contig}){
 					$pp = $flag & 2 ? 1 : 0;
-#					if($flag & 2){ $pp = 1 }else{ $pp = 0 }
 					$SE{upstream}->{$read_ID} = [$seq, $qual, $pp];
 				}
 			# if read is mapped on the same strand as the reference sequence
 			}else{
-				# ignore read if it begins with an insertion
-				next if ($cigar =~ /^\d+I/);
 				# if the read maps to the linked RADtags site detected for this contig
 				if($map_pos == $linked_RADtag_contigs_ref->{$detected_contig}){
 					$pp = $flag & 2 ? 1 : 0;
-#					if($flag & 2){ $pp = 1 }else{ $pp = 0 }
 					$SE{downstream}->{$read_ID} = [$seq, $qual, $pp];
 				}
 			}
@@ -432,15 +431,6 @@ sub collect_all_reads {
 	#----------------------------------------------------
 	# only keep PE reads whose mate maps to a RADtag site
 	#----------------------------------------------------
-#	foreach my $read_ID (keys %$PE_init_ref){
-#		# if there exists a SE read with the same read ID
-#		if(exists $SE_ref->{upstream}->{$read_ID} or exists $SE_ref->{downstream}->{$read_ID}){
-#			$PE{$read_ID} = $PE_init_ref->{$read_ID};
-#		}
-#	}
-			
-	# this code, compared to the above version, should save many unnecessary hash lookups
-	# since only PE reads from SE reads that map to a detected RADtag site are to be safed.
 	foreach my $read_ID (keys %{ $SE{upstream} }){
 		$PE{$read_ID} = $PE_init{$read_ID};
 	}
