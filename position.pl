@@ -42,10 +42,23 @@ foreach my $filename (@ARGV){
 		# identical sequences are recorded only once.
 		if(/CCTGCAGG/){ $pos{$_} = $-[0]+1 }
 	}
-	$SbfI{$filename} = join(",", values %pos);
+	$SbfI{$filename} = [values %pos];
 }
 
-foreach my $filename (keys %SbfI){
-	print $filename, ",", $SbfI{$filename}, "\n";
+# creates a list of filenames sorted descending by the number of
+# unique reads with SbfI sites
+my @x = sort { @{ $SbfI{$b} } <=> @{ $SbfI{$a} } } keys %SbfI;
+#
+# stores the maximum number of unique reads with SbfI sites that
+# were found in any input file. This shall be the column number
+# in the output.
+my $field_number = scalar @{ $SbfI{$x[0]} };
+
+my $empty_fields = 0;
+foreach my $filename (@x){
+	$empty_fields = $field_number - scalar(@{ $SbfI{$filename} });
+	print $filename, ",", join(",", @{ $SbfI{$filename} });
+	print "," x $empty_fields;
+	print "\n";
 }
 
