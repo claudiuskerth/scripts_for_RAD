@@ -40,7 +40,10 @@ foreach my $filename (@ARGV){
 		# store the 1-based position in the read as a value
 		# in a hash with the read sequence as key. That way
 		# identical sequences are recorded only once.
-		if(/CCTGCAGG/){ $pos{$_} = $-[0]+1 }
+#		if(/CCTGCAGG/o){ 
+		if(/CTCGAG/){ 
+			$pos{$_} = $-[0]+1 
+		}
 	}
 	$SbfI{$filename} = [values %pos];
 }
