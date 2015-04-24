@@ -27,6 +27,8 @@ my (@fields, $name, %contigs, $length, $flag, $SE_contig, $PE_contig, $SE_mappos
 
 my $SE_read_length = 46;
 my $PE_read_length = 51;
+#my $SE_read_length = 70;
+#my $PE_read_length = 70;
 
 while(<>){
 	#----------------------------------------------
@@ -45,10 +47,10 @@ while(<>){
 	@fields = split;
 	($flag, $SE_contig, $SE_mappos, $PE_contig, $PE_mappos) = @fields[1,2,3,6,7];
 #	print join("	", ($flag, $SE_contig, $SE_mappos, $PE_contig, $PE_mappos)), "\n";
-   #----------------------------------------------
+   #--------------------------------------------------
    # check if the read pair would have had enough 
    # space on either reference contig to map properly
-   #----------------------------------------------
+   #--------------------------------------------------
 	($SE_OK, $PE_OK) = (0, 0);
 	# if SE read is mapped as revcomp
 	if($flag & 16){
