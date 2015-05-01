@@ -58,6 +58,11 @@ my @x = sort { @{ $SbfI{$b} } <=> @{ $SbfI{$a} } } keys %SbfI;
 my $field_number = scalar @{ $SbfI{$x[0]} };
 
 my $empty_fields = 0;
+#
+# This prints out a list containing the positions of all SbfI sites found.
+# Starting with the longest list and adding empty fields for all shorter list
+# makes importing into R easier.
+#
 foreach my $filename (@x){
 	$empty_fields = $field_number - scalar(@{ $SbfI{$filename} });
 	print $filename, ",", join(",", @{ $SbfI{$filename} });
