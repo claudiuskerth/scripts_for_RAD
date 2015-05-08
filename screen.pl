@@ -29,6 +29,8 @@ my $SE_read_length = 46;
 my $PE_read_length = 51;
 #my $SE_read_length = 70;
 #my $PE_read_length = 70;
+#my $SE_read_length = 0;
+#my $PE_read_length = 0;
 
 while(<>){
 	#----------------------------------------------
@@ -46,6 +48,8 @@ while(<>){
 
 	@fields = split;
 	($flag, $SE_contig, $SE_mappos, $PE_contig, $PE_mappos) = @fields[1,2,3,6,7];
+#	$SE_read_length = length($fields[9]);
+#	$PE_read_length = 96 - $SE_read_length + 4;
 #	print join("	", ($flag, $SE_contig, $SE_mappos, $PE_contig, $PE_mappos)), "\n";
    #--------------------------------------------------
    # check if the read pair would have had enough 
