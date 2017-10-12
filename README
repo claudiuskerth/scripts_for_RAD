@@ -1,6 +1,6 @@
  
-The perl scripts in this project are designed to help with the analysis of illumina sequencing data and RAD data in particular (see Baird et al., 2008, PLoS ONE). Many of them are filtering output from other programmes (like 'stacks', see Catchen et al, 2011, G3: Genes, Genomes, Genetics). 
+The Perl and Python scripts in this project are designed to help with the analysis of Illumina sequencing data and RAD data in particular (see Baird et al., 2008, PLoS ONE). Many of them are filtering output from other programmes (like 'stacks', see Catchen et al, 2011, G3: Genes, Genomes, Genetics). 
 
-They are not designed to be user-friendly for non-Perl-literate users, i. e. not many command line options to change the behaviour of a script. However, I am usually putting quite some effort into commenting my code and organising it in a way that makes it readable. So changing a script's behaviour from within the code is usually fairly easy.
+Many are not designed to be user-friendly for non-Perl/Python-literate users, i. e. not many command line options to change the behaviour of a script. However, I am usually putting quite some effort into commenting my code and organising it in a way that makes it readable. So changing a script's behaviour from within the code is usually fairly easy.
 
 The scripts in this project can be used and changed by everyone so long as any changes are made available to everyone under the same conditions.
